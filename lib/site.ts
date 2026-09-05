@@ -23,9 +23,6 @@ export const navLinks = [
   { href: routes.hub, label: "Perth labels" },
   { href: routes.whatIs, label: "What is Traffolyte" },
   { href: routes.switchboard, label: "Switchboard" },
-  { href: routes.malaga, label: "Malaga" },
-  { href: routes.wangara, label: "Wangara" },
-  { href: routes.welshpool, label: "Welshpool" },
 ] as const;
 
 export const suburbs = [
