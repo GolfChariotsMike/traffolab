@@ -45,6 +45,10 @@
   --color-signal: var(--signal);
   --color-signal-foreground: var(--signal-foreground);
   --color-ink: var(--ink);
+  --color-charcoal: var(--charcoal);
+  --color-steel: var(--steel);
+  --color-paper: var(--paper);
+  --color-laser: var(--laser);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -90,6 +94,10 @@
   --signal: oklch(0.84 0.165 92);
   --signal-foreground: oklch(0.18 0.03 80);
   --ink: oklch(0.16 0.02 70);
+  --charcoal: #12151a;
+  --steel: #2a323c;
+  --paper: #f4f5f7;
+  --laser: #ff6a00;
 }
 
 .dark {
@@ -114,6 +122,10 @@
   --signal: oklch(0.84 0.165 92);
   --signal-foreground: oklch(0.18 0.03 80);
   --ink: oklch(0.12 0.02 70);
+  --charcoal: #12151a;
+  --steel: #2a323c;
+  --paper: #f4f5f7;
+  --laser: #ff6a00;
 }
 
 @layer base {

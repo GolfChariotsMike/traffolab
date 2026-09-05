@@ -15,7 +15,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { navLinks, routes, siteName } from "@/lib/site";
+import { brandName, navLinks, routes } from "@/lib/site";
 
 function isActive(pathname: string, href: string) {
   if (href === routes.home) return pathname === "/";
@@ -27,7 +27,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-ink text-primary-foreground">
-      <div className="h-1 bg-signal" />
+      <div className="h-1 bg-laser" />
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
         <Link href={routes.home} className="flex items-center gap-2.5">
           <span
@@ -38,7 +38,7 @@ export function SiteHeader() {
           </span>
           <span className="flex flex-col leading-none">
             <span className="font-heading text-sm font-semibold tracking-wide">
-              {siteName}
+              {brandName}
             </span>
             <span className="font-mono text-[10px] tracking-[0.16em] text-primary-foreground/60 uppercase">
               Perth · WA
@@ -65,7 +65,7 @@ export function SiteHeader() {
           <Button
             asChild
             size="sm"
-            className="hidden bg-signal text-signal-foreground hover:bg-signal/90 sm:inline-flex"
+            className="hidden bg-laser text-charcoal hover:bg-laser/90 sm:inline-flex"
           >
             <Link href={routes.order}>Order</Link>
           </Button>
@@ -84,7 +84,7 @@ export function SiteHeader() {
             <SheetContent side="right" className="bg-ink text-primary-foreground">
               <SheetHeader>
                 <SheetTitle className="text-primary-foreground">
-                  {siteName}
+                  {brandName}
                 </SheetTitle>
                 <SheetDescription className="text-primary-foreground/65">
                   Traffolyte labels · Perth / WA

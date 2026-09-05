@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
-import { routes, siteName, suburbs } from "@/lib/site";
+import { brandName, routes, suburbs } from "@/lib/site";
 
 const footerNav = [
   { href: routes.hub, label: "Traffolyte labels Perth" },
@@ -16,14 +16,14 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-3">
           <div className="flex flex-col gap-3">
             <p className="font-heading text-lg font-semibold tracking-wide">
-              {siteName}
+              {brandName}
             </p>
             <p className="max-w-xs text-sm text-primary-foreground/70">
               Traffolyte (engraving laminate) labels for Perth trades and
               businesses. Designed online, nested for the laser, engraved in WA.
             </p>
             <p className="font-mono text-[11px] tracking-[0.12em] text-primary-foreground/45 uppercase">
-              {siteName} · Perth · Stik Stickers group
+              {brandName} · Perth · Stik Stickers group
             </p>
           </div>
 
