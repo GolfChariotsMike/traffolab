@@ -1,7 +1,10 @@
 export const siteName = "TraffoLab";
 
 export const siteUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://traffolab.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "https://traffolab.vercel.app");
 
 export const routes = {
   home: "/",

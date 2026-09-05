@@ -82,11 +82,13 @@ export default function HomePage() {
             <LaminatePlate
               legend="Main switch"
               caption="Top layer stays. Laser removes the face so the text is the material."
+              className="[&_figcaption]:text-primary-foreground/55"
             />
             <LaminatePlate
               legend="PV isolator"
               palette="red-white"
               caption="Typical switchboard colours — black/white, red/white, yellow/black."
+              className="[&_figcaption]:text-primary-foreground/55"
             />
           </div>
         </div>
