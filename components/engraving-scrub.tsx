@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   engravingPoster,
   engravingSrc,
-  inCalloutBand,
+  isCalloutRevealed,
   sellPoints,
   type SellPoint,
 } from "@/lib/engraving";
@@ -23,40 +23,75 @@ function sectionProgress(section: HTMLElement) {
 
 function Callout({
   point,
-  visible,
   align,
+  compact = false,
 }: {
   point: SellPoint;
-  visible: boolean;
   align: "left" | "right";
+  compact?: boolean;
 }) {
   return (
     <article
       className={cn(
-        "w-full max-w-sm rounded-sm border border-paper/15 bg-steel/94 px-5 py-4 text-paper shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
-        align === "left" ? "origin-left" : "origin-right self-end"
+        "w-full rounded-sm border border-paper/15 bg-steel/94 text-paper shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm",
+        compact ? "max-w-[17.5rem] px-3.5 py-2.5" : "max-w-xs px-4 py-3.5",
+        align === "right" && "self-end"
       )}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible
-          ? "translateX(0) scale(1)"
-          : `translateX(${align === "left" ? "-12px" : "12px"}) scale(0.96)`,
-      }}
-      aria-hidden={!visible}
       data-callout={point.id}
     >
-      <p className="font-mono text-xs tracking-[0.16em] text-laser uppercase">
+      <p className="font-mono text-[11px] tracking-[0.16em] text-laser uppercase">
         {point.id}
       </p>
-      <p className="mt-1.5 font-heading text-lg leading-snug font-semibold md:text-xl">
+      <p
+        className={cn(
+          "mt-1 font-heading leading-snug font-semibold",
+          compact ? "text-base" : "text-lg md:text-xl"
+        )}
+      >
         {point.title}
       </p>
       {point.detail ? (
-        <p className="mt-1.5 text-sm leading-snug text-haze md:text-base">
+        <p
+          className={cn(
+            "mt-1 leading-snug text-haze",
+            compact ? "text-xs" : "text-sm"
+          )}
+        >
           {point.detail}
         </p>
       ) : null}
     </article>
+  );
+}
+
+function CalloutColumn({
+  points,
+  align,
+  compact = false,
+}: {
+  points: SellPoint[];
+  align: "left" | "right";
+  compact?: boolean;
+}) {
+  if (points.length === 0) return null;
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col",
+        compact ? "gap-2.5" : "gap-5",
+        align === "right" && "items-end"
+      )}
+    >
+      {points.map((point) => (
+        <Callout
+          key={point.id}
+          point={point}
+          align={align}
+          compact={compact}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -156,14 +191,11 @@ export function EngravingScrub() {
     };
   }, [reducedMotion]);
 
-  const leftPoints = sellPoints.filter((point) => point.side === "left");
-  const rightPoints = sellPoints.filter((point) => point.side === "right");
-  const activeLeft =
-    leftPoints.find((point) => inCalloutBand(progress, point)) ?? null;
-  const activeRight =
-    rightPoints.find((point) => inCalloutBand(progress, point)) ?? null;
-  const activeMobile =
-    sellPoints.find((point) => inCalloutBand(progress, point)) ?? null;
+  const revealed = sellPoints.filter((point) =>
+    reducedMotion ? true : isCalloutRevealed(progress, point)
+  );
+  const leftPoints = revealed.filter((point) => point.side === "left");
+  const rightPoints = revealed.filter((point) => point.side === "right");
 
   return (
     <section
@@ -172,7 +204,7 @@ export function EngravingScrub() {
       aria-label="Traffolyte laser engraving"
       data-progress={progress.toFixed(2)}
       className="relative bg-charcoal"
-      style={{ height: reducedMotion ? undefined : "420vh" }}
+      style={{ height: reducedMotion ? undefined : "480vh" }}
     >
       <div
         className={cn(
@@ -198,57 +230,24 @@ export function EngravingScrub() {
 
         <p className="sr-only">
           Scroll to scrub the Traffolyte engraving film. The laser cuts
-          TraffLabels into a centred plate. Sell points: no minimum and easy
-          instant online ordering; engraved finish, not printed, will not rub off
-          like stickers; 3M adhesive option; 100% owned and manufactured in
-          Australia; bulk discounts.
+          TraffLabels into a centred plate. Sell points stay on screen once they
+          appear: no minimum and easy instant online ordering; engraved finish,
+          not printed, will not rub off like stickers; 3M adhesive option; 100%
+          owned and manufactured in Australia; bulk discounts.
         </p>
 
         <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[90rem] items-center justify-between px-[3vw] md:flex">
-          <div className="flex w-[min(22rem,30vw)] flex-col justify-center gap-3">
-            {(reducedMotion ? leftPoints : activeLeft ? [activeLeft] : []).map(
-              (point) => (
-                <Callout
-                  key={point.id}
-                  point={point}
-                  align="left"
-                  visible
-                />
-              )
-            )}
+          <div className="flex w-[min(20rem,28vw)] flex-col justify-evenly self-stretch py-8">
+            <CalloutColumn points={leftPoints} align="left" />
           </div>
-          <div className="flex w-[min(22rem,30vw)] flex-col justify-center gap-3">
-            {(reducedMotion
-              ? rightPoints
-              : activeRight
-                ? [activeRight]
-                : []
-            ).map((point) => (
-              <Callout
-                key={point.id}
-                point={point}
-                align="right"
-                visible
-              />
-            ))}
+          <div className="flex w-[min(20rem,28vw)] flex-col justify-evenly self-stretch py-8">
+            <CalloutColumn points={rightPoints} align="right" />
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4 md:hidden">
-          {reducedMotion ? (
-            <div className="flex w-full max-w-md flex-col gap-3">
-              {sellPoints.map((point) => (
-                <Callout
-                  key={point.id}
-                  point={point}
-                  align="left"
-                  visible
-                />
-              ))}
-            </div>
-          ) : activeMobile ? (
-            <Callout point={activeMobile} align="left" visible />
-          ) : null}
+        <div className="pointer-events-none absolute inset-x-0 top-3 bottom-3 z-20 flex flex-col justify-between px-3 md:hidden">
+          <CalloutColumn points={leftPoints} align="left" compact />
+          <CalloutColumn points={rightPoints} align="right" compact />
         </div>
       </div>
     </section>
