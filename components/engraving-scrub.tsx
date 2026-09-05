@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   engravingPoster,
@@ -13,18 +13,11 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function usePrefersReducedMotion() {
-  const [reduced, setReduced] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-
-  return reduced;
+function sectionProgress(section: HTMLElement) {
+  const rect = section.getBoundingClientRect();
+  const scrollable = section.offsetHeight - window.innerHeight;
+  if (scrollable <= 0) return 0;
+  return clamp(-rect.top / scrollable, 0, 1);
 }
 
 function Callout({
@@ -39,15 +32,15 @@ function Callout({
   return (
     <article
       className={cn(
-        "max-w-[13.5rem] border border-paper/12 bg-steel/88 px-3 py-2.5 text-paper shadow-[0_8px_24px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
-        align === "left" ? "origin-left" : "origin-right self-end",
-        visible
-          ? "translate-x-0 scale-100 opacity-100"
-          : cn(
-              "pointer-events-none scale-95 opacity-0",
-              align === "left" ? "-translate-x-3" : "translate-x-3"
-            )
+        "max-w-[13.5rem] border border-paper/15 bg-steel/90 px-3 py-2.5 text-paper shadow-[0_8px_24px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
+        align === "left" ? "origin-left" : "origin-right self-end"
       )}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible
+          ? "translateX(0) scale(1)"
+          : `translateX(${align === "left" ? "-12px" : "12px"}) scale(0.96)`,
+      }}
       aria-hidden={!visible}
     >
       <p className="font-mono text-[10px] tracking-[0.16em] text-laser uppercase">
@@ -64,126 +57,116 @@ function Callout({
 export function EngravingScrub() {
   const sectionRef = useRef<HTMLElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const targetTime = useRef(0);
-  const seeking = useRef(false);
-  const frame = useRef(0);
   const [progress, setProgress] = useState(0);
-  const reducedMotion = usePrefersReducedMotion();
+  const [reducedMotion, setReducedMotion] = useState(false);
 
-  const applyTime = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
-      return;
-    }
-    if (seeking.current) return;
-
-    const next = clamp(targetTime.current, 0, Math.max(video.duration - 0.04, 0));
-    if (Math.abs(video.currentTime - next) < 0.02) return;
-
-    seeking.current = true;
-    video.currentTime = next;
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
   }, []);
 
-  const syncFromScroll = useCallback(() => {
+  useEffect(() => {
     const section = sectionRef.current;
     const video = videoRef.current;
     if (!section || !video) return;
 
-    const rect = section.getBoundingClientRect();
-    const scrollable = section.offsetHeight - window.innerHeight;
-    const nextProgress =
-      scrollable <= 0 ? 0 : clamp(-rect.top / scrollable, 0, 1);
+    video.muted = true;
+    video.defaultPlaybackRate = 1;
+    video.pause();
 
-    setProgress(nextProgress);
+    let frame = 0;
+    let lastProgress = -1;
+    let lastTime = -1;
+    let seeking = false;
+    let unlockTimer = 0;
 
-    if (Number.isFinite(video.duration) && video.duration > 0) {
-      targetTime.current = nextProgress * video.duration;
-      applyTime();
-    }
-  }, [applyTime]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const onSeeked = () => {
-      seeking.current = false;
-      applyTime();
+    const unlock = () => {
+      video.muted = true;
+      const play = video.play();
+      if (play) {
+        play
+          .then(() => {
+            video.pause();
+          })
+          .catch(() => {
+            // currentTime still works in Chromium once metadata is loaded.
+          });
+      }
     };
 
-    const onReady = () => {
-      syncFromScroll();
+    const applyVideo = (nextProgress: number) => {
+      if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+      const nextTime = clamp(
+        nextProgress * video.duration,
+        0,
+        Math.max(video.duration - 0.04, 0)
+      );
+      if (Math.abs(nextTime - lastTime) < 0.03 || seeking) return;
+
+      seeking = true;
+      lastTime = nextTime;
+      try {
+        if (!video.paused) video.pause();
+        video.currentTime = nextTime;
+      } catch {
+        seeking = false;
+      }
+      window.clearTimeout(unlockTimer);
+      unlockTimer = window.setTimeout(() => {
+        seeking = false;
+      }, 90);
+    };
+
+    const onSeeked = () => {
+      seeking = false;
+    };
+
+    const tick = () => {
+      const next = reducedMotion ? 1 : sectionProgress(section);
+      if (Math.abs(next - lastProgress) >= 0.008) {
+        lastProgress = next;
+        setProgress(next);
+      }
+      applyVideo(next);
+      frame = window.requestAnimationFrame(tick);
     };
 
     video.addEventListener("seeked", onSeeked);
-    video.addEventListener("loadedmetadata", onReady);
-    if (video.readyState >= 1) onReady();
-
-    const unlockSeeking = async () => {
-      try {
-        video.muted = true;
-        await video.play();
-        video.pause();
-      } catch {
-        // Desktop browsers typically allow currentTime without a play unlock.
-      }
-    };
-    void unlockSeeking();
-
-    return () => {
-      video.removeEventListener("seeked", onSeeked);
-      video.removeEventListener("loadedmetadata", onReady);
-    };
-  }, [applyTime, syncFromScroll]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-
-    if (reducedMotion) {
-      if (video && Number.isFinite(video.duration) && video.duration > 0) {
-        video.currentTime = video.duration;
-      }
-      return;
+    if (video.readyState >= 1) {
+      unlock();
+    } else {
+      video.addEventListener("loadedmetadata", unlock, { once: true });
     }
 
-    const onScroll = () => {
-      if (frame.current) return;
-      frame.current = window.requestAnimationFrame(() => {
-        frame.current = 0;
-        syncFromScroll();
-      });
-    };
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    frame = window.requestAnimationFrame(tick);
 
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (frame.current) window.cancelAnimationFrame(frame.current);
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(unlockTimer);
+      video.removeEventListener("seeked", onSeeked);
     };
-  }, [reducedMotion, syncFromScroll]);
+  }, [reducedMotion]);
 
-  const displayProgress = reducedMotion ? 1 : progress;
   const leftPoints = sellPoints.filter((point) => point.side === "left");
   const rightPoints = sellPoints.filter((point) => point.side === "right");
   const activeMobile =
-    [...sellPoints]
-      .reverse()
-      .find((point) => displayProgress >= point.appear) ?? null;
+    [...sellPoints].reverse().find((point) => progress >= point.appear) ?? null;
 
   return (
     <section
       ref={sectionRef}
       id="engraving"
       aria-label="Traffolyte laser engraving"
+      data-progress={progress.toFixed(2)}
       className="relative bg-charcoal"
       style={{ height: reducedMotion ? undefined : "420vh" }}
     >
       <div
         className={cn(
-          "flex flex-col justify-center overflow-hidden bg-charcoal",
+          "flex flex-col justify-center bg-charcoal",
           reducedMotion
             ? "relative min-h-[min(100svh,46rem)]"
             : "sticky top-[3.75rem] h-[calc(100svh-3.75rem)]"
@@ -211,14 +194,14 @@ export function EngravingScrub() {
           Australia; bulk discounts.
         </p>
 
-        <div className="pointer-events-none relative z-10 mx-auto hidden h-full w-full max-w-[90rem] px-[4vw] md:flex md:items-center md:justify-between">
+        <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[90rem] items-center justify-between px-[4vw] md:flex">
           <div className="flex w-[min(13.5rem,22vw)] flex-col gap-3">
             {leftPoints.map((point) => (
               <Callout
                 key={point.id}
                 point={point}
                 align="left"
-                visible={displayProgress >= point.appear}
+                visible={progress >= point.appear}
               />
             ))}
           </div>
@@ -228,13 +211,13 @@ export function EngravingScrub() {
                 key={point.id}
                 point={point}
                 align="right"
-                visible={displayProgress >= point.appear}
+                visible={progress >= point.appear}
               />
             ))}
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex justify-center px-4 md:hidden">
+        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4 md:hidden">
           {activeMobile ? (
             <Callout point={activeMobile} align="left" visible />
           ) : null}
