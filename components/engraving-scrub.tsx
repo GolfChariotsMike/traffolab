@@ -43,6 +43,7 @@ function Callout({
           : `translateX(${align === "left" ? "-12px" : "12px"}) scale(0.96)`,
       }}
       aria-hidden={!visible}
+      data-callout={point.id}
     >
       <p className="font-mono text-[10px] tracking-[0.16em] text-laser uppercase">
         {point.id}
