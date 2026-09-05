@@ -16,7 +16,7 @@ export default function NotFound() {
         <EmptyHeader>
           <EmptyTitle>Page not found</EmptyTitle>
           <EmptyDescription>
-            That URL is not one of the TraffoLab pages. Head back to Perth
+            That URL is not one of the TraffLabels pages. Head back to Perth
             Traffolyte labels or the homepage.
           </EmptyDescription>
         </EmptyHeader>

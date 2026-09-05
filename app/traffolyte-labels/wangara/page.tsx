@@ -5,7 +5,7 @@ const wangara = {
   name: "Wangara",
   path: routes.wangara,
   intro:
-    "Wangara’s industrial estates run on short lead times — factories, wholesalers, and electrical contractors who cannot wait a fortnight for a plate. TraffoLab targets a same-week nest from Perth so Wangara jobs stay on the local laser.",
+    "Wangara’s industrial estates run on short lead times — factories, wholesalers, and electrical contractors who cannot wait a fortnight for a plate. TraffLabels targets a same-week nest from Perth so Wangara jobs stay on the local laser.",
   bodyTitle: "Industrial-estate turnaround, engraved in WA",
   body: "Wangara sits in the northern industrial belt with Malaga next door. We engrave Traffolyte circuit IDs, isolators, and plant tags in WA rather than sending artwork east. If the site is actually in Malaga, use that page; metro-wide orders start from the Perth hub.",
   nearbyTitle: "Wangara and neighbouring estates",
@@ -51,7 +51,7 @@ const wangara = {
       question: "Is Wangara a separate factory?",
       answer: (
         <p>
-          No. All TraffoLab engraving is WA production under the Stik Stickers
+          No. All TraffLabels engraving is WA production under the Stik Stickers
           group. Wangara is a delivery and trade area, not a second plant.
         </p>
       ),

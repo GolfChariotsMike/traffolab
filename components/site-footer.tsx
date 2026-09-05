@@ -68,7 +68,7 @@ export function SiteFooter() {
 
         <p className="text-xs text-primary-foreground/45">
           Labels support the clear identification electricians use on AS/NZS 3000
-          switchboards. TraffoLab does not claim AS/NZS certification of the
+          switchboards. TraffLabels does not claim AS/NZS certification of the
           labels themselves.
         </p>
       </div>

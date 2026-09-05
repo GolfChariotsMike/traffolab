@@ -13,7 +13,7 @@ import { Section, SectionHeading } from "@/components/section";
 import { absoluteUrl, routes } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "What is Traffolyte? Engraving Laminate Explained | TraffoLab",
+  title: "What is Traffolyte? Engraving Laminate Explained | TraffLabels",
   description:
     "Traffolyte is multi-layer engraving laminate. The laser removes the top colour so text is the core — used for switchboard, circuit ID, and industrial tags in Perth.",
   alternates: { canonical: absoluteUrl(routes.whatIs) },
@@ -42,7 +42,7 @@ export default function WhatIsTraffolytePage() {
               and solvents that lift vinyl.
             </SectionHeading>
             <p className="text-muted-foreground">
-              TraffoLab nests each order as SVG for LightBurn, then engraves in
+              TraffLabels nests each order as SVG for LightBurn, then engraves in
               WA. You are buying a cut plate, not a sticker run.
             </p>
           </div>
