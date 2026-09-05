@@ -15,9 +15,9 @@ import { Section } from "@/components/section";
 import { absoluteUrl, routes } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Designer Coming Soon | Order Traffolyte Labels | TraffoLab",
+  title: "Designer Coming Soon | Order Traffolyte Labels | TraffLabels",
   description:
-    "The TraffoLab online designer is coming soon. Personalise a Traffolyte legend or start from Perth trade labels. Jobs will nest as SVG for LightBurn and engrave in WA.",
+    "The TraffLabels online designer is coming soon. Personalise a Traffolyte legend or start from Perth trade labels. Jobs will nest as SVG for LightBurn and engrave in WA.",
   alternates: { canonical: absoluteUrl(routes.order) },
 };
 

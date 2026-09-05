@@ -1,4 +1,6 @@
-export const siteName = "TraffoLab";
+export const siteName = "TraffLabels";
+
+export const brandName = "TraffLabels";
 
 export const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??
@@ -23,9 +25,6 @@ export const navLinks = [
   { href: routes.hub, label: "Perth labels" },
   { href: routes.whatIs, label: "What is Traffolyte" },
   { href: routes.switchboard, label: "Switchboard" },
-  { href: routes.malaga, label: "Malaga" },
-  { href: routes.wangara, label: "Wangara" },
-  { href: routes.welshpool, label: "Welshpool" },
 ] as const;
 
 export const suburbs = [

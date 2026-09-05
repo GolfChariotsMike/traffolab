@@ -13,7 +13,7 @@ import { Section, SectionHeading } from "@/components/section";
 import { absoluteUrl, routes } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Switchboard Labels Perth | Engraved Circuit IDs | TraffoLab",
+  title: "Switchboard Labels Perth | Engraved Circuit IDs | TraffLabels",
   description:
     "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend or a full schedule. Designer coming soon.",
   alternates: { canonical: absoluteUrl(routes.switchboard) },

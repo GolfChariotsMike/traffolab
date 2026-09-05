@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,8 +8,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { LaminatePlate } from "@/components/laminate-plate";
+import { EngravingScrub } from "@/components/engraving-scrub";
+import { HomeHero } from "@/components/home-hero";
 import { Section, SectionHeading } from "@/components/section";
+import { UseCases } from "@/components/use-cases";
 import { absoluteUrl, routes, siteName } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -46,53 +47,9 @@ const steps = [
 export default function HomePage() {
   return (
     <>
-      <section className="border-b bg-ink text-primary-foreground">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] md:items-center md:py-20">
-          <div className="flex flex-col gap-6">
-            <p className="font-mono text-[11px] tracking-[0.18em] text-signal uppercase">
-              {siteName} · Perth · Stik Stickers group
-            </p>
-            <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-              Engraved Traffolyte labels for Perth trades and custom work
-            </h1>
-            <p className="max-w-xl text-base leading-relaxed text-primary-foreground/75 md:text-lg">
-              Permanent two-colour laminate — not vinyl. Trade crews order
-              circuit IDs and isolator legends. Everyone else can personalise a
-              one-off plate. Design online when the designer ships; we nest the
-              job for the laser and engrave in WA.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button asChild size="lg" className="h-11 px-4">
-                <Link href={routes.hub}>
-                  Trade labels
-                  <ArrowRightIcon data-icon="inline-end" />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="h-11 border-primary-foreground/20 bg-transparent px-4 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-              >
-                <Link href={routes.order}>Personalise a label</Link>
-              </Button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-3">
-            <LaminatePlate
-              legend="Main switch"
-              caption="Top layer stays. Laser removes the face so the text is the material."
-              className="[&_figcaption]:text-primary-foreground/55"
-            />
-            <LaminatePlate
-              legend="PV isolator"
-              palette="red-white"
-              caption="Typical switchboard colours — black/white, red/white, yellow/black."
-              className="[&_figcaption]:text-primary-foreground/55"
-            />
-          </div>
-        </div>
-      </section>
+      <HomeHero />
+      <EngravingScrub />
+      <UseCases />
 
       <Section>
         <SectionHeading

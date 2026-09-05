@@ -19,7 +19,7 @@ export type SuburbContent = {
 
 export function suburbMetadata(suburb: SuburbContent): Metadata {
   return {
-    title: `Traffolyte Labels ${suburb.name} | Order Online | TraffoLab`,
+    title: `Traffolyte Labels ${suburb.name} | Order Online | TraffLabels`,
     description: suburb.intro,
     alternates: { canonical: absoluteUrl(suburb.path) },
   };
