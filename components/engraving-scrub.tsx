@@ -236,11 +236,11 @@ export function EngravingScrub() {
           owned and manufactured in Australia; bulk discounts.
         </p>
 
-        <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[90rem] items-center justify-between px-[3vw] md:flex">
-          <div className="flex w-[min(20rem,28vw)] flex-col justify-evenly self-stretch py-8">
+        <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[96rem] items-center justify-between px-[2.5vw] md:flex">
+          <div className="flex w-[min(18rem,22vw)] flex-col justify-evenly self-stretch py-6">
             <CalloutColumn points={leftPoints} align="left" />
           </div>
-          <div className="flex w-[min(20rem,28vw)] flex-col justify-evenly self-stretch py-8">
+          <div className="flex w-[min(18rem,22vw)] flex-col justify-evenly self-stretch py-6">
             <CalloutColumn points={rightPoints} align="right" />
           </div>
         </div>
