@@ -15,7 +15,7 @@ import { Section, SectionHeading } from "@/components/section";
 import { absoluteUrl, routes } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Traffolyte Labels Perth | Design Online, Engraved in WA | TraffoLab",
+  title: "Traffolyte Labels Perth | Design Online, Engraved in WA | TraffLabels",
   description:
     "Order custom Traffolyte labels in Perth — switchboard, circuit ID, and industrial tags. Design online, engraved in WA, Australia-wide shipping. Same-week turnaround target.",
   alternates: { canonical: absoluteUrl(routes.hub) },

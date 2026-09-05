@@ -2,16 +2,19 @@ import { cn } from "@/lib/utils";
 
 const palettes = {
   "yellow-black": {
-    face: "bg-signal text-signal-foreground",
-    core: "bg-ink text-signal",
+    face: "#F5C400",
+    core: "#12151A",
+    edge: "#8A6F00",
   },
   "black-white": {
-    face: "bg-zinc-900 text-zinc-100",
-    core: "bg-zinc-100 text-zinc-900",
+    face: "#16181C",
+    core: "#F4F5F7",
+    edge: "#0B0C0E",
   },
   "red-white": {
-    face: "bg-red-800 text-red-50",
-    core: "bg-zinc-100 text-red-900",
+    face: "#B42318",
+    core: "#F4F5F7",
+    edge: "#6F150E",
   },
 } as const;
 
@@ -30,22 +33,31 @@ export function LaminatePlate({
 
   return (
     <figure className={cn("flex flex-col gap-2", className)}>
-      <div
-        className={cn(
-          "overflow-hidden rounded-md ring-1 ring-foreground/15",
-          colors.face
-        )}
-      >
-        <div className="px-3 py-1.5 font-mono text-[10px] tracking-[0.16em] uppercase">
-          Traffolyte · 2-layer
-        </div>
+      <div className="relative">
         <div
-          className={cn(
-            "flex min-h-20 items-center px-3 py-4 font-mono text-lg font-medium tracking-wide uppercase md:text-xl",
-            colors.core
-          )}
+          aria-hidden
+          className="absolute inset-0 translate-x-[3px] translate-y-[4px] rounded-[3px]"
+          style={{ background: colors.edge }}
+        />
+        <div
+          className="relative overflow-hidden rounded-[3px] px-4 py-5 shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
+          style={{
+            background: colors.face,
+            boxShadow: `inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.22), 0 12px 28px rgba(0,0,0,0.28)`,
+          }}
         >
-          {legend}
+          <p
+            className="font-heading text-xl font-semibold tracking-[0.04em] uppercase md:text-2xl"
+            style={{ color: colors.core }}
+          >
+            {legend}
+          </p>
+          <p
+            className="mt-2 font-mono text-[10px] tracking-[0.16em] uppercase"
+            style={{ color: colors.core, opacity: 0.55 }}
+          >
+            Traffolyte · 2-layer
+          </p>
         </div>
       </div>
       {caption ? (

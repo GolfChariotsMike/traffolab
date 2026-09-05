@@ -33,7 +33,7 @@ function Callout({
   return (
     <article
       className={cn(
-        "max-w-[12.5rem] rounded-sm border border-paper/12 bg-steel/92 px-2.5 py-2 text-paper shadow-[0_8px_20px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
+        "w-full max-w-sm rounded-sm border border-paper/15 bg-steel/94 px-5 py-4 text-paper shadow-[0_12px_32px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
         align === "left" ? "origin-left" : "origin-right self-end"
       )}
       style={{
@@ -45,12 +45,16 @@ function Callout({
       aria-hidden={!visible}
       data-callout={point.id}
     >
-      <p className="font-mono text-[10px] tracking-[0.16em] text-laser uppercase">
+      <p className="font-mono text-xs tracking-[0.16em] text-laser uppercase">
         {point.id}
       </p>
-      <p className="mt-1 text-sm leading-snug font-medium">{point.title}</p>
+      <p className="mt-1.5 font-heading text-lg leading-snug font-semibold md:text-xl">
+        {point.title}
+      </p>
       {point.detail ? (
-        <p className="mt-0.5 text-xs leading-snug text-haze">{point.detail}</p>
+        <p className="mt-1.5 text-sm leading-snug text-haze md:text-base">
+          {point.detail}
+        </p>
       ) : null}
     </article>
   );
@@ -200,8 +204,8 @@ export function EngravingScrub() {
           Australia; bulk discounts.
         </p>
 
-        <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[90rem] items-center justify-between px-[4vw] md:flex">
-          <div className="flex w-[min(13.5rem,22vw)] flex-col justify-center gap-3">
+        <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[90rem] items-center justify-between px-[3vw] md:flex">
+          <div className="flex w-[min(22rem,30vw)] flex-col justify-center gap-3">
             {(reducedMotion ? leftPoints : activeLeft ? [activeLeft] : []).map(
               (point) => (
                 <Callout
@@ -213,7 +217,7 @@ export function EngravingScrub() {
               )
             )}
           </div>
-          <div className="flex w-[min(13.5rem,22vw)] flex-col justify-center gap-3">
+          <div className="flex w-[min(22rem,30vw)] flex-col justify-center gap-3">
             {(reducedMotion
               ? rightPoints
               : activeRight
@@ -232,7 +236,7 @@ export function EngravingScrub() {
 
         <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4 md:hidden">
           {reducedMotion ? (
-            <div className="flex max-w-sm flex-col gap-2">
+            <div className="flex w-full max-w-md flex-col gap-3">
               {sellPoints.map((point) => (
                 <Callout
                   key={point.id}
