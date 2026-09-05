@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   engravingPoster,
   engravingSrc,
+  inCalloutBand,
   sellPoints,
   type SellPoint,
 } from "@/lib/engraving";
@@ -32,7 +33,7 @@ function Callout({
   return (
     <article
       className={cn(
-        "max-w-[13.5rem] border border-paper/15 bg-steel/90 px-3 py-2.5 text-paper shadow-[0_8px_24px_rgba(0,0,0,0.4)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
+        "max-w-[12.5rem] rounded-sm border border-paper/12 bg-steel/92 px-2.5 py-2 text-paper shadow-[0_8px_20px_rgba(0,0,0,0.35)] backdrop-blur-sm transition-[opacity,transform] duration-300 ease-out",
         align === "left" ? "origin-left" : "origin-right self-end"
       )}
       style={{
@@ -48,7 +49,7 @@ function Callout({
       </p>
       <p className="mt-1 text-sm leading-snug font-medium">{point.title}</p>
       {point.detail ? (
-        <p className="mt-0.5 text-xs leading-snug text-paper/65">{point.detail}</p>
+        <p className="mt-0.5 text-xs leading-snug text-haze">{point.detail}</p>
       ) : null}
     </article>
   );
@@ -152,8 +153,12 @@ export function EngravingScrub() {
 
   const leftPoints = sellPoints.filter((point) => point.side === "left");
   const rightPoints = sellPoints.filter((point) => point.side === "right");
+  const activeLeft =
+    leftPoints.find((point) => inCalloutBand(progress, point)) ?? null;
+  const activeRight =
+    rightPoints.find((point) => inCalloutBand(progress, point)) ?? null;
   const activeMobile =
-    [...sellPoints].reverse().find((point) => progress >= point.appear) ?? null;
+    sellPoints.find((point) => inCalloutBand(progress, point)) ?? null;
 
   return (
     <section
@@ -195,30 +200,48 @@ export function EngravingScrub() {
         </p>
 
         <div className="pointer-events-none relative z-20 mx-auto hidden h-full w-full max-w-[90rem] items-center justify-between px-[4vw] md:flex">
-          <div className="flex w-[min(13.5rem,22vw)] flex-col gap-3">
-            {leftPoints.map((point) => (
-              <Callout
-                key={point.id}
-                point={point}
-                align="left"
-                visible={progress >= point.appear}
-              />
-            ))}
+          <div className="flex w-[min(13.5rem,22vw)] flex-col justify-center gap-3">
+            {(reducedMotion ? leftPoints : activeLeft ? [activeLeft] : []).map(
+              (point) => (
+                <Callout
+                  key={point.id}
+                  point={point}
+                  align="left"
+                  visible
+                />
+              )
+            )}
           </div>
-          <div className="flex w-[min(13.5rem,22vw)] flex-col gap-3">
-            {rightPoints.map((point) => (
+          <div className="flex w-[min(13.5rem,22vw)] flex-col justify-center gap-3">
+            {(reducedMotion
+              ? rightPoints
+              : activeRight
+                ? [activeRight]
+                : []
+            ).map((point) => (
               <Callout
                 key={point.id}
                 point={point}
                 align="right"
-                visible={progress >= point.appear}
+                visible
               />
             ))}
           </div>
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4 md:hidden">
-          {activeMobile ? (
+          {reducedMotion ? (
+            <div className="flex max-w-sm flex-col gap-2">
+              {sellPoints.map((point) => (
+                <Callout
+                  key={point.id}
+                  point={point}
+                  align="left"
+                  visible
+                />
+              ))}
+            </div>
+          ) : activeMobile ? (
             <Callout point={activeMobile} align="left" visible />
           ) : null}
         </div>

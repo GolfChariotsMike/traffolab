@@ -12,7 +12,7 @@ export function HomeHero() {
         <h1 className="max-w-3xl font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
           Engraved Traffolyte labels. Order online.
         </h1>
-        <p className="max-w-xl text-base leading-relaxed text-paper/70 md:text-lg">
+        <p className="max-w-xl text-base leading-relaxed text-haze md:text-lg">
           Permanent two-colour laminate — not vinyl. No minimum. Laser-engraved
           in Australia.
         </p>

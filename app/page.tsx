@@ -11,6 +11,7 @@ import {
 import { EngravingScrub } from "@/components/engraving-scrub";
 import { HomeHero } from "@/components/home-hero";
 import { Section, SectionHeading } from "@/components/section";
+import { UseCases } from "@/components/use-cases";
 import { absoluteUrl, routes, siteName } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -48,6 +49,7 @@ export default function HomePage() {
     <>
       <HomeHero />
       <EngravingScrub />
+      <UseCases />
 
       <Section>
         <SectionHeading
