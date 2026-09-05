@@ -15,7 +15,7 @@ import { Section, SectionHeading } from "@/components/section";
 import { absoluteUrl, routes } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Traffolyte Labels Perth | Design Online, Engraved in WA | TraffoLab",
+  title: "Traffolyte Labels Perth | Design Online, Engraved in WA | TraffLabels",
   description:
     "Order custom Traffolyte labels in Perth — switchboard, circuit ID, and industrial tags. Design online, engraved in WA, Australia-wide shipping. Same-week turnaround target.",
   alternates: { canonical: absoluteUrl(routes.hub) },
@@ -27,7 +27,7 @@ export default function PerthHubPage() {
       <PageHero
         eyebrow="Perth · Western Australia"
         title="Traffolyte labels in Perth — ordered online, engraved in WA"
-        lede="Need permanent engraved labels that won’t peel off a hot switchboard? TraffoLab makes Traffolyte (engraving laminate) labels for Perth trades and businesses — circuit IDs, main switches, isolators, plant tags, and custom legends. Design online, we nest the job for the laser, and ship across WA and Australia."
+        lede="Need permanent engraved labels that won’t peel off a hot switchboard? TraffLabels makes Traffolyte (engraving laminate) labels for Perth trades and businesses — circuit IDs, main switches, isolators, plant tags, and custom legends. Design online, we nest the job for the laser, and ship across WA and Australia."
         crumbs={[{ label: "Traffolyte labels Perth" }]}
       />
 
@@ -124,7 +124,7 @@ export default function PerthHubPage() {
         </SectionHeading>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Labels support the clear identification electricians use on{" "}
-          <span className="text-foreground">AS/NZS 3000</span> boards. TraffoLab
+          <span className="text-foreground">AS/NZS 3000</span> boards. TraffLabels
           does not claim AS/NZS certification of the labels.
         </p>
         <div className="flex flex-wrap gap-3">
@@ -142,7 +142,7 @@ export default function PerthHubPage() {
         <FaqList
           items={[
             {
-              question: "Where are TraffoLab labels made?",
+              question: "Where are TraffLabels labels made?",
               answer: (
                 <p>
                   WA production under the Stik Stickers group. Jobs are nested

@@ -34,7 +34,7 @@ export default function OpenGraphImage() {
               color: "#E8C14A",
             }}
           >
-            TraffoLab · Perth · WA
+            TraffLabels · Perth · WA
           </div>
           <div style={{ fontSize: 72, fontWeight: 600, lineHeight: 1.05 }}>
             Traffolyte labels

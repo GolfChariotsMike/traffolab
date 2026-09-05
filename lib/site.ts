@@ -1,4 +1,4 @@
-export const siteName = "TraffoLab";
+export const siteName = "TraffLabels";
 
 export const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??

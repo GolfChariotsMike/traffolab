@@ -1,6 +1,6 @@
-# TraffoLab
+# TraffLabels
 
-Traffolyte labels marketing site for Perth / WA. Working brand name under the Stik Stickers group.
+Traffolyte labels marketing site for Perth / WA. Brand: TraffLabels (repo: traffolab). Under the Stik Stickers group.
 
 ## Stack
 

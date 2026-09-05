@@ -5,7 +5,7 @@ const welshpool = {
   name: "Welshpool",
   path: routes.welshpool,
   intro:
-    "Welshpool and the Kewdale logistics corridor move freight, plant, and electrical work on tight windows. TraffoLab engraves Traffolyte labels in Perth so a Welshpool switchroom or warehouse does not wait on interstate plates.",
+    "Welshpool and the Kewdale logistics corridor move freight, plant, and electrical work on tight windows. TraffLabels engraves Traffolyte labels in Perth so a Welshpool switchroom or warehouse does not wait on interstate plates.",
   bodyTitle: "Welshpool–Kewdale corridor, metro service",
   body: "This page is for Welshpool sites and the adjoining Kewdale logistics strip — distribution sheds, workshops, and the switchboards that feed them. Nearby Wangara and Malaga share the same WA nest; the Perth hub is the parent page for the rest of the metro.",
   nearbyTitle: "Welshpool plus the northern belt",

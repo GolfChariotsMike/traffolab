@@ -5,7 +5,7 @@ const malaga = {
   name: "Malaga",
   path: routes.malaga,
   intro:
-    "Malaga is one of Perth’s busiest light-industrial hubs — workshops, warehouses, and electrical contractors sitting on the northern trade belt. TraffoLab engraves Traffolyte labels in WA so a Malaga job does not sit in an East Coast queue.",
+    "Malaga is one of Perth’s busiest light-industrial hubs — workshops, warehouses, and electrical contractors sitting on the northern trade belt. TraffLabels engraves Traffolyte labels in WA so a Malaga job does not sit in an East Coast queue.",
   bodyTitle: "WA production for a workshop suburb",
   body: "Circuit IDs, isolators, and plant tags for Malaga sheds and switchrooms are nested here and laser-cut from engraving laminate. East Coast engraving adds freight days you do not have when a board is being terminated this week. Nearby Wangara and Welshpool use the same Perth nest; the city-wide hub covers the rest of the metro.",
   nearbyTitle: "Malaga, then the rest of the belt",
