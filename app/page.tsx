@@ -24,7 +24,7 @@ const steps = [
   {
     step: "01",
     title: "Design",
-    body: "Specify legends, sizes, and colours in the online designer (coming soon) — or start from a trade schedule.",
+    body: "Specify legends, sizes, and colours in the TraffLabels designer — or start from a trade schedule.",
   },
   {
     step: "02",
@@ -58,8 +58,8 @@ export default function HomePage() {
             <p className="max-w-xl text-base leading-relaxed text-primary-foreground/75 md:text-lg">
               Permanent two-colour laminate — not vinyl. Trade crews order
               circuit IDs and isolator legends. Everyone else can personalise a
-              one-off plate. Design online when the designer ships; we nest the
-              job for the laser and engrave in WA.
+              one-off plate. Design online in the TraffLabels plate designer; we
+              nest the job for the laser and engrave in WA.
             </p>
             <div className="flex flex-wrap gap-3">
               <Button asChild size="lg" className="h-11 px-4">
@@ -132,13 +132,13 @@ export default function HomePage() {
               <CardTitle>A warmer path for one-off legends</CardTitle>
               <CardDescription>
                 Workshop tags, plant names, trailer plates, or a single custom
-                legend. The designer is a stub for now — leave the intent and we
-                will open the tool when it is ready.
+                legend. Open the TraffLabels designer, lay out the plate, and
+                export SVG for the laser.
               </CardDescription>
             </CardHeader>
             <CardFooter>
               <Button asChild variant="outline">
-                <Link href={routes.order}>Personalise — designer soon</Link>
+                <Link href={routes.order}>Open the designer</Link>
               </Button>
             </CardFooter>
           </Card>

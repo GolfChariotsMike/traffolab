@@ -23,4 +23,4 @@ npm run build
 - `/traffolyte-labels/malaga/`
 - `/traffolyte-labels/wangara/`
 - `/traffolyte-labels/welshpool/`
-- `/order/` — designer stub
+- `/order/` — TraffLabels canvas designer (size, colour pair, text, SVG export)
