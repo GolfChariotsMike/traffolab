@@ -1,6 +1,7 @@
 export const DESIGN_VERSION = 1 as const;
 
-export const MIN_PLATE_MM = 15;
+/** Smallest trade preset is 20 × 10 (Mike’s physical sample). */
+export const MIN_PLATE_MM = 10;
 export const MAX_PLATE_WIDTH_MM = 300;
 export const MAX_PLATE_HEIGHT_MM = 200;
 
@@ -12,13 +13,14 @@ export const CHAR_WIDTH_EM = 0.62;
 export const ENGRAVE_FONT_FAMILY = "Space Grotesk, Arial, sans-serif";
 
 export const SIZE_PRESETS = [
+  { id: "20x10", label: "20 × 10", widthMm: 20, heightMm: 10 },
   { id: "60x20", label: "60 × 20", widthMm: 60, heightMm: 20 },
   { id: "80x30", label: "80 × 30", widthMm: 80, heightMm: 30 },
   { id: "100x50", label: "100 × 50", widthMm: 100, heightMm: 50 },
   { id: "150x50", label: "150 × 50", widthMm: 150, heightMm: 50 },
 ] as const;
 
-export type SizePresetId = (typeof SIZE_PRESETS)[number]["id"] | "custom";
+export type SizePresetId = (typeof SIZE_PRESETS)[number]["id"];
 
 export const COLOUR_PAIRS = {
   "white-black": {
@@ -84,20 +86,22 @@ export type OrderLine = {
   svg: string;
 };
 
+const DEFAULT_PRESET = SIZE_PRESETS[0];
+
 export const DEFAULT_DESIGN: LabelDesign = {
   version: DESIGN_VERSION,
-  widthMm: 100,
-  heightMm: 50,
+  widthMm: DEFAULT_PRESET.widthMm,
+  heightMm: DEFAULT_PRESET.heightMm,
   colourPair: "yellow-black",
   adhesive3m: false,
   objects: [
     {
       id: "text-1",
       type: "text",
-      text: "MAIN SWITCH",
-      x: 50,
-      y: 29,
-      fontSize: 10,
+      text: "MAIN",
+      x: 10,
+      y: 6.8,
+      fontSize: 6.5,
       align: "center",
     },
   ],
@@ -107,11 +111,33 @@ export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+export function nearestSizePreset(widthMm: number, heightMm: number) {
+  return SIZE_PRESETS.reduce((best, preset) => {
+    const dist =
+      (preset.widthMm - widthMm) ** 2 + (preset.heightMm - heightMm) ** 2;
+    const bestDist =
+      (best.widthMm - widthMm) ** 2 + (best.heightMm - heightMm) ** 2;
+    return dist < bestDist ? preset : best;
+  });
+}
+
+/**
+ * Plate sizes are presets only. Older saved designs (and any out-of-range
+ * values) snap to the nearest preset by Euclidean distance in millimetres.
+ */
+export function snapToSizePreset(widthMm: number, heightMm: number) {
+  const preset = nearestSizePreset(widthMm, heightMm);
+  return { widthMm: preset.widthMm, heightMm: preset.heightMm };
+}
+
 export function clampPlateSize(widthMm: number, heightMm: number) {
-  return {
-    widthMm: clamp(roundMm(widthMm), MIN_PLATE_MM, MAX_PLATE_WIDTH_MM),
-    heightMm: clamp(roundMm(heightMm), MIN_PLATE_MM, MAX_PLATE_HEIGHT_MM),
-  };
+  const clampedWidth = clamp(roundMm(widthMm), MIN_PLATE_MM, MAX_PLATE_WIDTH_MM);
+  const clampedHeight = clamp(
+    roundMm(heightMm),
+    MIN_PLATE_MM,
+    MAX_PLATE_HEIGHT_MM
+  );
+  return snapToSizePreset(clampedWidth, clampedHeight);
 }
 
 export function roundMm(value: number, step = 0.1) {
@@ -122,10 +148,7 @@ export function matchSizePreset(
   widthMm: number,
   heightMm: number
 ): SizePresetId {
-  const match = SIZE_PRESETS.find(
-    (preset) => preset.widthMm === widthMm && preset.heightMm === heightMm
-  );
-  return match?.id ?? "custom";
+  return nearestSizePreset(widthMm, heightMm).id;
 }
 
 export function nextObjectId(objects: TextObject[]) {
@@ -374,7 +397,7 @@ export function parseDesign(value: unknown): LabelDesign | null {
     ...size,
     colourPair: draft.colourPair,
     adhesive3m: draft.adhesive3m,
-    objects: objects.map((object) => clampObjectToPlate(object, size)),
+    objects: objects.map((object) => shrinkTextToPlate(object, size)),
   };
 }
 
