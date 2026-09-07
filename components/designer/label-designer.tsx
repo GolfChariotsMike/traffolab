@@ -74,8 +74,13 @@ export function LabelDesigner() {
 
   const addText = useCallback(() => {
     const next = createTextObject(design, nextObjectId(design.objects));
-    setDesign({ ...design, objects: [...design.objects, next] });
-    setSelectedId(next.id);
+    const nudge = (design.objects.length % 5) * 4;
+    const placed = clampObjectToPlate(
+      { ...next, x: next.x + nudge, y: next.y + nudge },
+      design
+    );
+    setDesign({ ...design, objects: [...design.objects, placed] });
+    setSelectedId(placed.id);
     window.setTimeout(() => textareaRef.current?.focus(), 0);
   }, [design]);
 
