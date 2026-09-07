@@ -1,14 +1,10 @@
 "use client";
 
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   COLOUR_PAIRS,
-  MAX_PLATE_HEIGHT_MM,
-  MAX_PLATE_WIDTH_MM,
-  MIN_PLATE_MM,
   SIZE_PRESETS,
   matchSizePreset,
   type ColourPairId,
@@ -51,27 +47,8 @@ export function PlateSetup({
             </button>
           ))}
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <NumberField
-            id="plate-width"
-            label="Width"
-            value={design.widthMm}
-            min={MIN_PLATE_MM}
-            max={MAX_PLATE_WIDTH_MM}
-            onChange={(widthMm) => onSize(widthMm, design.heightMm)}
-          />
-          <NumberField
-            id="plate-height"
-            label="Height"
-            value={design.heightMm}
-            min={MIN_PLATE_MM}
-            max={MAX_PLATE_HEIGHT_MM}
-            onChange={(heightMm) => onSize(design.widthMm, heightMm)}
-          />
-        </div>
         <p className="text-[11px] leading-relaxed text-paper/45">
-          Custom size {MIN_PLATE_MM}–{MAX_PLATE_WIDTH_MM} × {MIN_PLATE_MM}–
-          {MAX_PLATE_HEIGHT_MM} mm. Corners stay square.
+          Preset sizes only. Corners stay square.
         </p>
       </Fieldset>
 
@@ -156,39 +133,5 @@ function Fieldset({
       </legend>
       {children}
     </fieldset>
-  );
-}
-
-function NumberField({
-  id,
-  label,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id} className="text-[11px] text-paper/65">
-        {label} (mm)
-      </Label>
-      <Input
-        id={id}
-        type="number"
-        min={min}
-        max={max}
-        step={1}
-        value={Number.isInteger(value) ? value : value.toFixed(1)}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="bg-charcoal font-mono"
-      />
-    </div>
   );
 }
