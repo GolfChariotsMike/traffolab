@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
+import Link from "next/link";
+import { LabelDesignerLoader } from "@/components/designer/designer-loader";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,24 +10,6 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { absoluteUrl, productName, routes } from "@/lib/site";
-import Link from "next/link";
-
-const LabelDesigner = dynamic(
-  () =>
-    import("@/components/designer/label-designer").then(
-      (module) => module.LabelDesigner
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <section className="trafflabels-designer min-h-[560px] border-t border-white/10">
-        <div className="mx-auto max-w-[1440px] px-4 py-10 text-sm text-paper/55">
-          Loading TraffLabels designer…
-        </div>
-      </section>
-    ),
-  }
-);
 
 export const metadata: Metadata = {
   title: `Plate designer | Order Traffolyte labels | ${productName}`,
@@ -72,7 +55,7 @@ export default function OrderPage() {
         </div>
       </section>
 
-      <LabelDesigner />
+      <LabelDesignerLoader />
     </>
   );
 }
