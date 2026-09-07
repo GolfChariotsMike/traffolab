@@ -1,6 +1,6 @@
 export const siteName = "TraffLabels";
-
 export const brandName = "TraffLabels";
+export const productName = "TraffLabels";
 
 export const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??

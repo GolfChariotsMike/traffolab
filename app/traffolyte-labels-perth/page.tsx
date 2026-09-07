@@ -185,8 +185,8 @@ export default function PerthHubPage() {
 
       <CtaBand
         title="Ready to specify a legend?"
-        body="The online designer is coming soon. Trade jobs can start from the switchboard page; one-off personalise jobs can wait on the stub."
-        primary={{ href: routes.order, label: "Designer coming soon" }}
+        body="Lay out a single plate in the TraffLabels designer, or start a trade job from the switchboard page."
+        primary={{ href: routes.order, label: "Open the designer" }}
         secondary={{ href: routes.switchboard, label: "Switchboard labels" }}
       />
     </>

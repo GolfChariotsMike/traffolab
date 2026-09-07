@@ -159,7 +159,7 @@ export default function WhatIsTraffolytePage() {
         title="Order Traffolyte in Perth"
         body="Same material, specified online, nested for the laser, engraved in WA."
         primary={{ href: routes.hub, label: "Perth labels hub" }}
-        secondary={{ href: routes.order, label: "Designer coming soon" }}
+        secondary={{ href: routes.order, label: "Open the designer" }}
       />
     </>
   );

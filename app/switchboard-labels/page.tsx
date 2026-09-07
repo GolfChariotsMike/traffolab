@@ -15,7 +15,7 @@ import { absoluteUrl, routes } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Switchboard Labels Perth | Engraved Circuit IDs | TraffLabels",
   description:
-    "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend or a full schedule. Designer coming soon.",
+    "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend in the TraffLabels designer, or a full schedule next.",
   alternates: { canonical: absoluteUrl(routes.switchboard) },
 };
 
@@ -144,8 +144,8 @@ export default function SwitchboardLabelsPage() {
 
       <CtaBand
         title="Specify a switchboard job"
-        body="The designer is a stub for now. Start an order and we will take the schedule, or read the Perth hub first."
-        primary={{ href: routes.order, label: "Order — designer soon" }}
+        body="Use the TraffLabels designer for a single legend. A CSV schedule importer is next."
+        primary={{ href: routes.order, label: "Open the designer" }}
         secondary={{ href: routes.hub, label: "Perth labels hub" }}
       />
     </>

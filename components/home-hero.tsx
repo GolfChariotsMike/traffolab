@@ -18,8 +18,8 @@ export function HomeHero() {
           <p className="max-w-xl text-base leading-relaxed text-haze md:text-lg">
             Permanent two-colour laminate — not vinyl. Trade crews order circuit
             IDs and isolator legends. Everyone else can personalise a one-off
-            plate. Design online when the designer ships; we nest the job for
-            the laser and engrave in Australia.
+            plate. Design online in the TraffLabels plate designer; we nest the
+            job for the laser and engrave in Australia.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button
