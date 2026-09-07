@@ -12,8 +12,8 @@ export function BrandLogo({
     <Image
       src="/brand/trafflabels-logo.png"
       alt="TraffLabels"
-      width={741}
-      height={150}
+      width={1976}
+      height={318}
       className={cn("h-7 w-auto sm:h-8", className)}
       priority={priority}
     />

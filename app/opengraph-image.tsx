@@ -27,7 +27,7 @@ export default async function OpenGraphImage() {
       >
         <div style={{ display: "flex", height: 10, width: 220, background: "#FEE100" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
-          <img src={logoSrc} width={420} height={85} alt="TraffLabels" />
+          <img src={logoSrc} width={496} height={80} alt="TraffLabels" />
           <div style={{ fontSize: 56, fontWeight: 600, lineHeight: 1.1 }}>
             Traffolyte labels
           </div>
