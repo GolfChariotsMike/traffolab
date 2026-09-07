@@ -23,4 +23,6 @@ npm run build
 - `/traffolyte-labels/malaga/`
 - `/traffolyte-labels/wangara/`
 - `/traffolyte-labels/welshpool/`
-- `/order/` — TraffLabels canvas designer (size, colour pair, text, SVG export)
+- `/order/` — choose Design online or Upload a list
+- `/order/?mode=designer` — TraffLabels canvas designer
+- `/order/?mode=upload` — CSV schedule upload (`colour,size,text,qty`)

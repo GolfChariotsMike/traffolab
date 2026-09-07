@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { colourPairOf, designSummary, type OrderLine } from "@/lib/label-design";
+import { routes } from "@/lib/site";
 
 export function OrderPanel({
   lines,
@@ -11,12 +13,14 @@ export function OrderPanel({
   onQty,
   onRemove,
   onContinue,
+  onOpenInDesigner,
 }: {
   lines: OrderLine[];
   continued: boolean;
   onQty: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   onContinue: () => void;
+  onOpenInDesigner?: (line: OrderLine) => void;
 }) {
   const totalPlates = lines.reduce((sum, line) => sum + line.qty, 0);
 
@@ -24,8 +28,8 @@ export function OrderPanel({
     <div className="flex flex-col gap-4">
       {lines.length === 0 ? (
         <p className="text-sm text-paper/55">
-          No plates in this draft yet. Add the current design when the legend is
-          right.
+          No plates in this draft yet. Add a design or a CSV list when the
+          legends are right.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -74,14 +78,26 @@ export function OrderPanel({
                       className="h-7 w-20 bg-charcoal font-mono"
                     />
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRemove(line.id)}
-                  >
-                    Remove
-                  </Button>
+                  <div className="flex flex-wrap gap-1">
+                    {onOpenInDesigner ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onOpenInDesigner(line)}
+                      >
+                        Open in designer
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemove(line.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 </div>
               </li>
             );
@@ -111,7 +127,11 @@ export function OrderPanel({
       )}
 
       <p className="text-[11px] leading-relaxed text-paper/40">
-        Switchboard CSV schedule importer — coming soon.
+        Need a full schedule?{" "}
+        <Link href={routes.orderUpload} className="text-laser underline-offset-2 hover:underline">
+          Upload a CSV
+        </Link>
+        .
       </p>
     </div>
   );
