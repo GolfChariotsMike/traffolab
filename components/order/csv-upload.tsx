@@ -237,8 +237,9 @@ export function CsvUpload() {
                 </Button>
                 {invalidRows.length > 0 ? (
                   <p className="text-sm text-red-300">
-                    {invalidRows.length} row{invalidRows.length === 1 ? "" : "s"} have
-                    errors and will be skipped.
+                    {invalidRows.length === 1
+                      ? "1 row has errors and will be skipped."
+                      : `${invalidRows.length} rows have errors and will be skipped.`}
                   </p>
                 ) : null}
               </div>
