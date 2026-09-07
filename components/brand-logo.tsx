@@ -13,14 +13,19 @@ export function BrandLogo({
   priority?: boolean;
 }) {
   return (
-    <span className={cn("inline-flex h-7 shrink-0 sm:h-8", className)}>
+    <span
+      className={cn(
+        "inline-flex w-fit shrink-0 self-start",
+        className ?? "h-7 sm:h-8"
+      )}
+    >
       <Image
         src="/brand/trafflabels-logo.png"
         alt="TraffLabels"
         width={LOGO_WIDTH}
         height={LOGO_HEIGHT}
         sizes="200px"
-        className="h-full w-auto max-w-none object-contain"
+        className="h-full w-auto max-w-none shrink-0 object-contain"
         style={{ width: "auto", height: "100%" }}
         priority={priority}
       />
