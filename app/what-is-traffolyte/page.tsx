@@ -13,7 +13,7 @@ import { Section, SectionHeading } from "@/components/section";
 import { absoluteUrl, routes } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "What is Traffolyte? Engraving Laminate Explained | TraffoLab",
+  title: "What is Traffolyte? Engraving Laminate Explained | TraffLabels",
   description:
     "Traffolyte is multi-layer engraving laminate. The laser removes the top colour so text is the core — used for switchboard, circuit ID, and industrial tags in Perth.",
   alternates: { canonical: absoluteUrl(routes.whatIs) },
@@ -159,7 +159,7 @@ export default function WhatIsTraffolytePage() {
         title="Order Traffolyte in Perth"
         body="Same material, specified online, nested for the laser, engraved in WA."
         primary={{ href: routes.hub, label: "Perth labels hub" }}
-        secondary={{ href: routes.order, label: "Designer coming soon" }}
+        secondary={{ href: routes.order, label: "Open the designer" }}
       />
     </>
   );

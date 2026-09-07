@@ -14,8 +14,9 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
-import { navLinks, routes, siteName } from "@/lib/site";
+import { navLinks, routes } from "@/lib/site";
 
 function isActive(pathname: string, href: string) {
   if (href === routes.home) return pathname === "/";
@@ -29,21 +30,8 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b bg-ink text-primary-foreground">
       <div className="h-1 bg-signal" />
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-        <Link href={routes.home} className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="grid size-7 place-items-center bg-signal text-[10px] font-semibold tracking-tight text-signal-foreground"
-          >
-            TL
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="font-heading text-sm font-semibold tracking-wide">
-              {siteName}
-            </span>
-            <span className="font-mono text-[10px] tracking-[0.16em] text-primary-foreground/60 uppercase">
-              Perth · WA
-            </span>
-          </span>
+        <Link href={routes.home} className="flex items-center gap-3">
+          <BrandLogo priority />
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
@@ -84,7 +72,7 @@ export function SiteHeader() {
             <SheetContent side="right" className="bg-ink text-primary-foreground">
               <SheetHeader>
                 <SheetTitle className="text-primary-foreground">
-                  {siteName}
+                  <BrandLogo className="h-7 w-auto" />
                 </SheetTitle>
                 <SheetDescription className="text-primary-foreground/65">
                   Traffolyte labels · Perth / WA

@@ -19,7 +19,7 @@ export type SuburbContent = {
 
 export function suburbMetadata(suburb: SuburbContent): Metadata {
   return {
-    title: `Traffolyte Labels ${suburb.name} | Order Online | TraffoLab`,
+    title: `Traffolyte Labels ${suburb.name} | Order Online | TraffLabels`,
     description: suburb.intro,
     alternates: { canonical: absoluteUrl(suburb.path) },
   };
@@ -57,8 +57,8 @@ export function SuburbPage({ suburb }: { suburb: SuburbContent }) {
 
       <CtaBand
         title={`Order Traffolyte for ${suburb.name}`}
-        body="Design online when the designer ships. Until then, start from the Perth hub or the order stub."
-        primary={{ href: routes.order, label: "Designer coming soon" }}
+        body="Design a plate in the TraffLabels designer, or start from the Perth hub."
+        primary={{ href: routes.order, label: "Open the designer" }}
         secondary={{ href: routes.hub, label: "Perth labels hub" }}
       />
     </>

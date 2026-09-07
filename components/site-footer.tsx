@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import { Separator } from "@/components/ui/separator";
-import { routes, siteName, suburbs } from "@/lib/site";
+import { productName, routes, suburbs } from "@/lib/site";
 
 const footerNav = [
   { href: routes.hub, label: "Traffolyte labels Perth" },
@@ -15,15 +16,13 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12">
         <div className="grid gap-10 md:grid-cols-3">
           <div className="flex flex-col gap-3">
-            <p className="font-heading text-lg font-semibold tracking-wide">
-              {siteName}
-            </p>
+            <BrandLogo className="h-9 w-auto" />
             <p className="max-w-xs text-sm text-primary-foreground/70">
               Traffolyte (engraving laminate) labels for Perth trades and
               businesses. Designed online, nested for the laser, engraved in WA.
             </p>
             <p className="font-mono text-[11px] tracking-[0.12em] text-primary-foreground/45 uppercase">
-              {siteName} · Perth · Stik Stickers group
+              {productName} · Perth · Stik Stickers group
             </p>
           </div>
 
@@ -68,7 +67,7 @@ export function SiteFooter() {
 
         <p className="text-xs text-primary-foreground/45">
           Labels support the clear identification electricians use on AS/NZS 3000
-          switchboards. TraffoLab does not claim AS/NZS certification of the
+          switchboards. TraffLabels does not claim AS/NZS certification of the
           labels themselves.
         </p>
       </div>
