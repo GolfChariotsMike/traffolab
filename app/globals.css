@@ -79,7 +79,7 @@
   --border: oklch(0.86 0.012 85);
   --input: oklch(0.86 0.012 85);
   --ring: oklch(0.55 0.04 80);
-  --chart-1: oklch(0.84 0.16 92);
+  --chart-1: #fee100;
   --chart-2: oklch(0.45 0.015 70);
   --chart-3: oklch(0.35 0.02 70);
   --chart-4: oklch(0.28 0.02 70);
@@ -93,13 +93,13 @@
   --sidebar-accent-foreground: oklch(0.22 0.02 70);
   --sidebar-border: oklch(0.86 0.012 85);
   --sidebar-ring: oklch(0.55 0.04 80);
-  --signal: oklch(0.84 0.165 92);
-  --signal-foreground: oklch(0.18 0.03 80);
+  --signal: #fee100;
+  --signal-foreground: #12151a;
   --ink: oklch(0.16 0.02 70);
   --charcoal: #12151a;
   --steel: #2a323c;
   --paper: #f4f5f7;
-  --laser: #ff6a00;
+  --laser: #fee100;
 }
 
 .trafflabels-designer {
@@ -109,7 +109,7 @@
   --card-foreground: #f4f5f7;
   --popover: #2a323c;
   --popover-foreground: #f4f5f7;
-  --primary: #ff6a00;
+  --primary: #fee100;
   --primary-foreground: #12151a;
   --secondary: #343c48;
   --secondary-foreground: #f4f5f7;
@@ -119,7 +119,7 @@
   --accent-foreground: #f4f5f7;
   --border: rgb(244 245 247 / 14%);
   --input: rgb(244 245 247 / 16%);
-  --ring: #ff6a00;
+  --ring: #fee100;
   color: var(--foreground);
   background: var(--background);
 }
@@ -131,8 +131,8 @@
   --card-foreground: oklch(0.97 0.01 95);
   --popover: oklch(0.22 0.02 70);
   --popover-foreground: oklch(0.97 0.01 95);
-  --primary: oklch(0.84 0.165 92);
-  --primary-foreground: oklch(0.18 0.03 80);
+  --primary: #fee100;
+  --primary-foreground: #12151a;
   --secondary: oklch(0.28 0.02 70);
   --secondary-foreground: oklch(0.97 0.01 95);
   --muted: oklch(0.28 0.02 70);
@@ -142,14 +142,14 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.84 0.165 92);
-  --signal: oklch(0.84 0.165 92);
-  --signal-foreground: oklch(0.18 0.03 80);
+  --ring: #fee100;
+  --signal: #fee100;
+  --signal-foreground: #12151a;
   --ink: oklch(0.12 0.02 70);
   --charcoal: #12151a;
   --steel: #2a323c;
   --paper: #f4f5f7;
-  --laser: #ff6a00;
+  --laser: #fee100;
 }
 
 @layer base {

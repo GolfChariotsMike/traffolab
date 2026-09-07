@@ -223,7 +223,7 @@ function SelectionBox({ object }: { object: TextObject }) {
       width={metrics.width + 1.6}
       height={metrics.height + 1.2}
       fill="none"
-      stroke="#FF6A00"
+      stroke="#FEE100"
       strokeWidth={0.35}
       pointerEvents="none"
     />
