@@ -15,6 +15,7 @@ import {
   applyPlateSize,
   clamp,
   clampObjectToPlate,
+  createOrderLine,
   createTextObject,
   designSummary,
   downloadSvg,
@@ -97,16 +98,7 @@ export function LabelDesigner() {
   }, [design, showToast]);
 
   const addToOrder = useCallback(() => {
-    const line: OrderLine = {
-      id:
-        typeof crypto !== "undefined" && "randomUUID" in crypto
-          ? crypto.randomUUID()
-          : `line-${Date.now()}`,
-      qty: 1,
-      design,
-      svg: serializeLightBurnSvg(design),
-    };
-    setOrderLines((current) => [...current, line]);
+    setOrderLines((current) => [...current, createOrderLine(design)]);
     setContinued(false);
     showToast("Plate added to order draft");
   }, [design, showToast]);

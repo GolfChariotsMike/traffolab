@@ -255,6 +255,39 @@ export function plateFilename(design: LabelDesign) {
   return `trafflabels-${design.widthMm}x${design.heightMm}-${design.colourPair}.svg`;
 }
 
+export function newLineId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `line-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createLegendDesign(
+  colourPair: ColourPairId,
+  widthMm: number,
+  heightMm: number,
+  text: string
+): LabelDesign {
+  const size = { widthMm, heightMm };
+  const seed = createTextObject(size, "text-1");
+  return {
+    version: DESIGN_VERSION,
+    ...size,
+    colourPair,
+    adhesive3m: false,
+    objects: [shrinkTextToPlate({ ...seed, text }, size)],
+  };
+}
+
+export function createOrderLine(design: LabelDesign, qty = 1): OrderLine {
+  return {
+    id: newLineId(),
+    qty: clamp(Math.round(qty || 1), 1, 999),
+    design,
+    svg: serializeLightBurnSvg(design),
+  };
+}
+
 export function textAnchor(align: TextAlign) {
   if (align === "center") return "middle";
   if (align === "right") return "end";

@@ -15,7 +15,7 @@ import { absoluteUrl, routes } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Switchboard Labels Perth | Engraved Circuit IDs | TraffLabels",
   description:
-    "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend in the TraffLabels designer, or a full schedule next.",
+    "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend in the TraffLabels designer, or upload a CSV schedule.",
   alternates: { canonical: absoluteUrl(routes.switchboard) },
 };
 
@@ -34,8 +34,8 @@ export default function SwitchboardLabelsPage() {
           eyebrow="What to specify"
           title="Singles or a whole schedule"
         >
-          Send a circuit list, a marked-up photo, or wait for the online
-          designer. We nest the job as SVG for LightBurn and engrave in WA.
+          Design a single legend online, or upload a CSV schedule. We nest the
+          job as SVG for LightBurn and engrave in WA.
         </SectionHeading>
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -144,9 +144,9 @@ export default function SwitchboardLabelsPage() {
 
       <CtaBand
         title="Specify a switchboard job"
-        body="Use the TraffLabels designer for a single legend. A CSV schedule importer is next."
-        primary={{ href: routes.order, label: "Open the designer" }}
-        secondary={{ href: routes.hub, label: "Perth labels hub" }}
+        body="Use the TraffLabels designer for a single legend, or upload a CSV of colour, size, text, and qty."
+        primary={{ href: routes.orderDesigner, label: "Open the designer" }}
+        secondary={{ href: routes.orderUpload, label: "Upload a list" }}
       />
     </>
   );

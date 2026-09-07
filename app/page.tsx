@@ -25,7 +25,7 @@ const steps = [
   {
     step: "01",
     title: "Design",
-    body: "Specify legends, sizes, and colours in the TraffLabels designer — or start from a trade schedule.",
+    body: "Specify legends, sizes, and colours in the TraffLabels designer — or upload a CSV schedule.",
   },
   {
     step: "02",
@@ -95,7 +95,7 @@ export default function HomePage() {
             </CardHeader>
             <CardFooter>
               <Button asChild variant="outline">
-                <Link href={routes.order}>Open the designer</Link>
+                <Link href={routes.orderDesigner}>Open the designer</Link>
               </Button>
             </CardFooter>
           </Card>

@@ -58,7 +58,7 @@ export function SuburbPage({ suburb }: { suburb: SuburbContent }) {
       <CtaBand
         title={`Order Traffolyte for ${suburb.name}`}
         body="Design a plate in the TraffLabels designer, or start from the Perth hub."
-        primary={{ href: routes.order, label: "Open the designer" }}
+        primary={{ href: routes.orderDesigner, label: "Open the designer" }}
         secondary={{ href: routes.hub, label: "Perth labels hub" }}
       />
     </>

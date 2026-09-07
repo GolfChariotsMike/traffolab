@@ -17,6 +17,8 @@ export const routes = {
   wangara: "/traffolyte-labels/wangara/",
   welshpool: "/traffolyte-labels/welshpool/",
   order: "/order/",
+  orderDesigner: "/order/?mode=designer",
+  orderUpload: "/order/?mode=upload",
 } as const;
 
 export type SiteRoute = (typeof routes)[keyof typeof routes];
