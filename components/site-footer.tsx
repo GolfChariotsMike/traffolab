@@ -16,7 +16,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 py-12">
         <div className="grid gap-10 md:grid-cols-3">
           <div className="flex flex-col gap-3">
-            <BrandLogo className="h-9 w-auto" />
+            <BrandLogo className="h-9" />
             <p className="max-w-xs text-sm text-primary-foreground/70">
               Traffolyte (engraving laminate) labels for Perth trades and
               businesses. Designed online, nested for the laser, engraved in WA.
