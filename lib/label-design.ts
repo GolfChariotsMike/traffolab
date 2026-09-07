@@ -183,6 +183,27 @@ export function clampObjectToPlate(
   };
 }
 
+export function shrinkTextToPlate(
+  object: TextObject,
+  plate: Pick<LabelDesign, "widthMm" | "heightMm">
+): TextObject {
+  const lines = textLines(object.text);
+  const maxChars = Math.max(1, ...lines.map((line) => line.length));
+  const widthLimit = (plate.widthMm - 4) / (maxChars * CHAR_WIDTH_EM);
+  const heightLimit = (plate.heightMm - 2) / (lines.length * LINE_HEIGHT);
+  return clampObjectToPlate(
+    {
+      ...object,
+      fontSize: clamp(
+        roundMm(Math.min(object.fontSize, widthLimit, heightLimit)),
+        MIN_FONT_MM,
+        MAX_FONT_MM
+      ),
+    },
+    plate
+  );
+}
+
 export function applyPlateSize(
   design: LabelDesign,
   widthMm: number,
@@ -192,9 +213,7 @@ export function applyPlateSize(
   return {
     ...design,
     ...size,
-    objects: design.objects.map((object) =>
-      clampObjectToPlate(object, size)
-    ),
+    objects: design.objects.map((object) => shrinkTextToPlate(object, size)),
   };
 }
 
@@ -357,6 +376,32 @@ export function parseDesign(value: unknown): LabelDesign | null {
     adhesive3m: draft.adhesive3m,
     objects: objects.map((object) => clampObjectToPlate(object, size)),
   };
+}
+
+export const DESIGN_STORAGE_KEY = "trafflabels.design.v1";
+export const ORDER_STORAGE_KEY = "trafflabels.order.v1";
+
+export function readStoredDesign(): LabelDesign {
+  if (typeof window === "undefined") return DEFAULT_DESIGN;
+  try {
+    return (
+      parseDesign(JSON.parse(localStorage.getItem(DESIGN_STORAGE_KEY) ?? "null")) ??
+      DEFAULT_DESIGN
+    );
+  } catch {
+    return DEFAULT_DESIGN;
+  }
+}
+
+export function readStoredOrderLines(): OrderLine[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return parseOrderLines(
+      JSON.parse(localStorage.getItem(ORDER_STORAGE_KEY) ?? "null")
+    );
+  } catch {
+    return [];
+  }
 }
 
 export function parseOrderLines(value: unknown): OrderLine[] {

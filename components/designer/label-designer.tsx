@@ -16,13 +16,14 @@ import {
   clamp,
   clampObjectToPlate,
   createTextObject,
-  DEFAULT_DESIGN,
   designSummary,
   downloadSvg,
   nextObjectId,
-  parseDesign,
-  parseOrderLines,
+  DESIGN_STORAGE_KEY,
+  ORDER_STORAGE_KEY,
   plateFilename,
+  readStoredDesign,
+  readStoredOrderLines,
   serializeDesignJson,
   serializeLightBurnSvg,
   type ColourPairId,
@@ -32,44 +33,23 @@ import {
 } from "@/lib/label-design";
 import { productName } from "@/lib/site";
 
-const DESIGN_KEY = "trafflabels.design.v1";
-const ORDER_KEY = "trafflabels.order.v1";
-
 export function LabelDesigner() {
-  const [design, setDesign] = useState<LabelDesign>(DEFAULT_DESIGN);
+  const [design, setDesign] = useState<LabelDesign>(readStoredDesign);
   const [selectedId, setSelectedId] = useState<string | null>(
-    DEFAULT_DESIGN.objects[0]?.id ?? null
+    () => readStoredDesign().objects[0]?.id ?? null
   );
-  const [orderLines, setOrderLines] = useState<OrderLine[]>([]);
+  const [orderLines, setOrderLines] = useState<OrderLine[]>(readStoredOrderLines);
   const [continued, setContinued] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selected = design.objects.find((object) => object.id === selectedId) ?? null;
 
   useEffect(() => {
-    try {
-      const storedDesign = parseDesign(
-        JSON.parse(localStorage.getItem(DESIGN_KEY) ?? "null")
-      );
-      const storedOrder = parseOrderLines(
-        JSON.parse(localStorage.getItem(ORDER_KEY) ?? "null")
-      );
-      if (storedDesign) {
-        setDesign(storedDesign);
-        setSelectedId(storedDesign.objects[0]?.id ?? null);
-      }
-      if (storedOrder.length > 0) setOrderLines(storedOrder);
-    } catch {
-      // Keep defaults if the draft is unreadable.
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(DESIGN_KEY, JSON.stringify(design));
+    localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(design));
   }, [design]);
 
   useEffect(() => {
-    localStorage.setItem(ORDER_KEY, JSON.stringify(orderLines));
+    localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(orderLines));
   }, [orderLines]);
 
   const showToast = useCallback((message: string) => {
@@ -221,7 +201,7 @@ export function LabelDesigner() {
       </div>
 
       <div className="mx-auto grid max-w-[1440px] gap-0 lg:grid-cols-[17rem_minmax(0,1fr)_19rem]">
-        <aside className="border-b border-white/10 p-4 lg:border-r lg:border-b-0">
+        <aside className="order-2 border-b border-white/10 p-4 lg:order-1 lg:border-r lg:border-b-0">
           <h3 className="mb-4 font-mono text-[10px] tracking-[0.18em] text-paper/50 uppercase">
             Plate setup
           </h3>
@@ -240,6 +220,7 @@ export function LabelDesigner() {
         </aside>
 
         <PlateCanvas
+          className="order-1 lg:order-2"
           design={design}
           selectedId={selectedId}
           onSelect={setSelectedId}
@@ -256,7 +237,7 @@ export function LabelDesigner() {
           }}
         />
 
-        <aside className="flex flex-col gap-8 border-t border-white/10 p-4 lg:border-t-0 lg:border-l">
+        <aside className="order-3 flex flex-col gap-8 border-t border-white/10 p-4 lg:border-t-0 lg:border-l">
           <div>
             <h3 className="mb-4 font-mono text-[10px] tracking-[0.18em] text-paper/50 uppercase">
               Object

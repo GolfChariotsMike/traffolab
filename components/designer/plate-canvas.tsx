@@ -19,11 +19,13 @@ export function PlateCanvas({
   selectedId,
   onSelect,
   onMove,
+  className,
 }: {
   design: LabelDesign;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number) => void;
+  className?: string;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -96,7 +98,10 @@ export function PlateCanvas({
   return (
     <div
       ref={stageRef}
-      className="relative flex min-h-[360px] flex-1 items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(244,245,247,0.05),transparent_55%),#12151a] md:min-h-[560px]"
+      className={cn(
+        "relative flex min-h-[360px] flex-1 items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_center,rgba(244,245,247,0.05),transparent_55%),#12151a] md:min-h-[560px]",
+        className
+      )}
     >
       <div className="pointer-events-none absolute top-3 left-4 font-mono text-[10px] tracking-[0.16em] text-paper/45 uppercase">
         1 unit = 1 mm · square corners
