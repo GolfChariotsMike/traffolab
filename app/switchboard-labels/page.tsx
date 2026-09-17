@@ -144,7 +144,7 @@ export default function SwitchboardLabelsPage() {
 
       <CtaBand
         title="Specify a switchboard job"
-        body="Use the TraffLabels designer for a single legend, or upload a CSV of colour, size, text, and qty."
+        body="Use the TraffLabels designer for a single legend, or upload a CSV of colour, width, height, text, and qty."
         primary={{ href: routes.orderDesigner, label: "Open the designer" }}
         secondary={{ href: routes.orderUpload, label: "Upload a list" }}
       />

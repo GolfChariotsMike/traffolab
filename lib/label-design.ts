@@ -131,13 +131,16 @@ export function snapToSizePreset(widthMm: number, heightMm: number) {
 }
 
 export function clampPlateSize(widthMm: number, heightMm: number) {
-  const clampedWidth = clamp(roundMm(widthMm), MIN_PLATE_MM, MAX_PLATE_WIDTH_MM);
-  const clampedHeight = clamp(
-    roundMm(heightMm),
-    MIN_PLATE_MM,
-    MAX_PLATE_HEIGHT_MM
-  );
-  return snapToSizePreset(clampedWidth, clampedHeight);
+  const size = clampFreeformPlateSize(widthMm, heightMm);
+  return snapToSizePreset(size.widthMm, size.heightMm);
+}
+
+/** CSV / order-draft path: keep exact millimetres, only bound the range. */
+export function clampFreeformPlateSize(widthMm: number, heightMm: number) {
+  return {
+    widthMm: clamp(roundMm(widthMm), 0.1, MAX_PLATE_WIDTH_MM),
+    heightMm: clamp(roundMm(heightMm), 0.1, MAX_PLATE_HEIGHT_MM),
+  };
 }
 
 export function roundMm(value: number, step = 0.1) {
@@ -409,7 +412,10 @@ function parseTextObject(value: unknown): TextObject | null {
   };
 }
 
-export function parseDesign(value: unknown): LabelDesign | null {
+export function parseDesign(
+  value: unknown,
+  options?: { snapToPreset?: boolean }
+): LabelDesign | null {
   if (!value || typeof value !== "object") return null;
   const draft = value as Partial<LabelDesign>;
   if (
@@ -424,7 +430,10 @@ export function parseDesign(value: unknown): LabelDesign | null {
   const objects = draft.objects
     .map(parseTextObject)
     .filter((object): object is TextObject => object !== null);
-  const size = clampPlateSize(draft.widthMm, draft.heightMm);
+  const size =
+    options?.snapToPreset === false
+      ? clampFreeformPlateSize(draft.widthMm, draft.heightMm)
+      : clampPlateSize(draft.widthMm, draft.heightMm);
   return {
     version: DESIGN_VERSION,
     ...size,
@@ -465,7 +474,7 @@ export function parseOrderLines(value: unknown): OrderLine[] {
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const line = item as Partial<OrderLine>;
-    const design = parseDesign(line.design);
+    const design = parseDesign(line.design, { snapToPreset: false });
     if (
       !design ||
       typeof line.id !== "string" ||

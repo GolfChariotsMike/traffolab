@@ -20,7 +20,7 @@ export function OrderChooser() {
           href={routes.orderUpload}
           kicker="Many legends"
           title="Upload a list"
-          body="Download the CSV template or map columns from your own schedule. Colour, size, text, and qty become order-draft lines."
+          body="Download the CSV template or map columns from your own schedule. Colour, width, height, text, and qty become order-draft lines — any millimetre size, not just presets."
           action="Upload a list"
           icon={<UploadIcon className="size-6" />}
         />

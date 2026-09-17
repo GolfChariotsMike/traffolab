@@ -1,32 +1,41 @@
 import {
   COLOUR_PAIRS,
-  SIZE_PRESETS,
+  MAX_PLATE_HEIGHT_MM,
+  MAX_PLATE_WIDTH_MM,
   createLegendDesign,
   createOrderLine,
+  roundMm,
   type ColourPairId,
   type OrderLine,
 } from "@/lib/label-design";
 
-export const TEMPLATE_FIELDS = ["colour", "size", "text", "qty"] as const;
+export const TEMPLATE_FIELDS = [
+  "colour",
+  "width",
+  "height",
+  "text",
+  "qty",
+] as const;
 export type CsvField = (typeof TEMPLATE_FIELDS)[number];
 export type ColumnMapping = Record<CsvField, number | null>;
 
-export const MAPPING_STORAGE_KEY = "trafflabels.csvMap.v1";
+export const MAPPING_STORAGE_KEY = "trafflabels.csvMap.v2";
 export const TEMPLATE_DOWNLOAD_PATH = "/templates/trafflabels-order-template.csv";
 export const TEMPLATE_FILENAME = "trafflabels-order-template.csv";
 
 export const TEMPLATE_CSV = [
   TEMPLATE_FIELDS.join(","),
-  "yellow-black,20x10,MAIN SWITCH,10",
-  "white-black,60x20,PV ISOLATOR,4",
-  "red-white,100x50,DB-1 CIRCUIT 14,2",
+  "yellow-black,45,12,MAIN SWITCH,10",
+  "white-black,100,25,PV ISOLATOR,4",
+  "red-white,60,20,DB-1 CIRCUIT 14,2",
 ].join("\n") + "\n";
 
 const FIELD_ALIASES: Record<CsvField, string[]> = {
-  colour: ["colour", "color", "colour pair", "color pair", "laminate"],
-  size: ["size", "preset", "dimensions", "wxh"],
+  colour: ["colour", "color", "colourpair", "colorpair", "laminate"],
+  width: ["width", "w", "widthmm"],
+  height: ["height", "h", "heightmm"],
   text: ["text", "legend", "label", "engraving", "wording"],
-  qty: ["qty", "qty.", "quantity", "count", "qnty"],
+  qty: ["qty", "quantity", "count", "qnty"],
 };
 
 export type ParsedCsv = {
@@ -45,7 +54,6 @@ export type PreviewRow = {
   values: Record<CsvField, string>;
   errors: CsvCellError[];
   colourPair: ColourPairId | null;
-  sizeId: string | null;
   widthMm: number | null;
   heightMm: number | null;
   text: string;
@@ -117,6 +125,10 @@ function compactKey(value: string) {
   return value.toLowerCase().replace(/[\s/_×x-]+/g, "");
 }
 
+export function normalizeHeader(value: string) {
+  return value.trim().toLowerCase().replace(/[\s()_\-/.]+/g, "");
+}
+
 export function parseColour(value: string): ColourPairId | null {
   const raw = value.trim().toLowerCase();
   if (!raw) return null;
@@ -134,20 +146,41 @@ export function parseColour(value: string): ColourPairId | null {
   return null;
 }
 
-export function parseSize(value: string) {
-  const raw = value
-    .trim()
-    .toLowerCase()
-    .replace(/mm/g, "")
-    .replace(/[×]/g, "x")
-    .replace(/\s+/g, "");
-  if (!raw) return null;
-  return (
-    SIZE_PRESETS.find(
-      (preset) =>
-        preset.id === raw || `${preset.widthMm}x${preset.heightMm}` === raw
-    ) ?? null
-  );
+export function parseMm(
+  value: string,
+  field: "width" | "height"
+): { mm: number } | { error: string } {
+  const label = field === "width" ? "Width" : "Height";
+  const maxMm = field === "width" ? MAX_PLATE_WIDTH_MM : MAX_PLATE_HEIGHT_MM;
+  const raw = value.trim();
+  if (!raw) {
+    return {
+      error: `${label} is required and must be a positive number in millimetres.`,
+    };
+  }
+
+  if (/^\d+(\.\d+)?\s*[x×]\s*\d+/i.test(raw)) {
+    return {
+      error: `Use a ${field} value in millimetres, not a size such as 20×10.`,
+    };
+  }
+
+  const numeric = raw.replace(/mm$/i, "").replace(/\s+/g, "");
+  if (!/^\d+(\.\d+)?$/.test(numeric)) {
+    return {
+      error: `${label} must be a positive number in millimetres (for example 45).`,
+    };
+  }
+
+  const mm = Number(numeric);
+  if (!Number.isFinite(mm) || mm <= 0) {
+    return { error: `${label} must be greater than 0 mm.` };
+  }
+  if (mm > maxMm) {
+    return { error: `${label} must be ${maxMm} mm or less.` };
+  }
+
+  return { mm: roundMm(mm) };
 }
 
 export function parseLegend(value: string) {
@@ -178,12 +211,12 @@ export function allowedColourHint() {
     .join(", ");
 }
 
-export function allowedSizeHint() {
-  return SIZE_PRESETS.map((preset) => preset.id).join(", ");
+export function dimensionHint() {
+  return `width and height in millimetres (any positive size up to ${MAX_PLATE_WIDTH_MM} × ${MAX_PLATE_HEIGHT_MM})`;
 }
 
 export function emptyMapping(): ColumnMapping {
-  return { colour: null, size: null, text: null, qty: null };
+  return { colour: null, width: null, height: null, text: null, qty: null };
 }
 
 export function isCompleteMapping(mapping: ColumnMapping) {
@@ -197,7 +230,7 @@ export function headerFingerprint(headers: string[]) {
 export function suggestMapping(headers: string[]): ColumnMapping {
   const mapping = emptyMapping();
   const used = new Set<number>();
-  const normalized = headers.map((header) => header.trim().toLowerCase());
+  const normalized = headers.map((header) => normalizeHeader(header));
 
   for (const field of TEMPLATE_FIELDS) {
     const index = normalized.findIndex(
@@ -215,9 +248,10 @@ export function suggestMapping(headers: string[]): ColumnMapping {
 function looksLikeTemplateDataRow(cells: string[]) {
   return (
     parseColour(cells[0] ?? "") !== null &&
-    parseSize(cells[1] ?? "") !== null &&
-    parseLegend(cells[2] ?? "").length > 0 &&
-    !("error" in parseQty(cells[3] ?? ""))
+    !("error" in parseMm(cells[1] ?? "", "width")) &&
+    !("error" in parseMm(cells[2] ?? "", "height")) &&
+    parseLegend(cells[3] ?? "").length > 0 &&
+    !("error" in parseQty(cells[4] ?? ""))
   );
 }
 
@@ -228,7 +262,7 @@ export function loadCsvDocument(text: string): ParsedCsv {
   }
 
   if (looksLikeTemplateDataRow(table[0])) {
-    const width = Math.max(...table.map((row) => row.length), 4);
+    const width = Math.max(...table.map((row) => row.length), 5);
     return {
       headers: Array.from({ length: width }, (_, index) => `Column ${index + 1}`),
       rows: table.map((row) => padRow(row, width)),
@@ -262,8 +296,8 @@ export function resolveMapping(
   }
   const suggested = suggestMapping(headers);
   if (looksLikeTemplateDataRow(headers) || headers.every((header) => /^column \d+$/i.test(header))) {
-    if (!isCompleteMapping(suggested) && headers.length >= 4) {
-      return { colour: 0, size: 1, text: 2, qty: 3 };
+    if (!isCompleteMapping(suggested) && headers.length >= 5) {
+      return { colour: 0, width: 1, height: 2, text: 3, qty: 4 };
     }
   }
   return suggested;
@@ -304,7 +338,8 @@ export function previewMappedRows(
   return document.rows.map((row, sourceIndex) => {
     const values = {
       colour: mapping.colour === null ? "" : (row[mapping.colour] ?? ""),
-      size: mapping.size === null ? "" : (row[mapping.size] ?? ""),
+      width: mapping.width === null ? "" : (row[mapping.width] ?? ""),
+      height: mapping.height === null ? "" : (row[mapping.height] ?? ""),
       text: mapping.text === null ? "" : (row[mapping.text] ?? ""),
       qty: mapping.qty === null ? "" : (row[mapping.qty] ?? ""),
     };
@@ -321,15 +356,20 @@ export function previewMappedRows(
       });
     }
 
-    if (mapping.size === null) {
-      errors.push({ field: "size", message: "Map a Size column." });
+    if (mapping.width === null) {
+      errors.push({ field: "width", message: "Map a Width column (mm)." });
     }
-    const size = parseSize(values.size);
-    if (mapping.size !== null && !size) {
-      errors.push({
-        field: "size",
-        message: `Unknown size. Allowed presets: ${allowedSizeHint()}.`,
-      });
+    const widthResult = parseMm(values.width, "width");
+    if (mapping.width !== null && "error" in widthResult) {
+      errors.push({ field: "width", message: widthResult.error });
+    }
+
+    if (mapping.height === null) {
+      errors.push({ field: "height", message: "Map a Height column (mm)." });
+    }
+    const heightResult = parseMm(values.height, "height");
+    if (mapping.height !== null && "error" in heightResult) {
+      errors.push({ field: "height", message: heightResult.error });
     }
 
     if (mapping.text === null) {
@@ -353,9 +393,8 @@ export function previewMappedRows(
       values,
       errors,
       colourPair,
-      sizeId: size?.id ?? null,
-      widthMm: size?.widthMm ?? null,
-      heightMm: size?.heightMm ?? null,
+      widthMm: "mm" in widthResult ? widthResult.mm : null,
+      heightMm: "mm" in heightResult ? heightResult.mm : null,
       text,
       qty: "qty" in qtyResult ? qtyResult.qty : null,
     };
@@ -393,4 +432,15 @@ export function downloadTemplateCsv() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+export function headersMatchTemplate(headers: string[]) {
+  const normalized = headers.map((header) => normalizeHeader(header));
+  return (
+    (normalized[0] === "colour" || normalized[0] === "color") &&
+    FIELD_ALIASES.width.includes(normalized[1] ?? "") &&
+    FIELD_ALIASES.height.includes(normalized[2] ?? "") &&
+    normalized[3] === "text" &&
+    (normalized[4] === "qty" || normalized[4] === "quantity")
+  );
 }
