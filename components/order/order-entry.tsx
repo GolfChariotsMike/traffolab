@@ -26,7 +26,7 @@ const COPY = {
   },
   upload: {
     title: "Upload a label list",
-    lede: "Download the TraffLabels CSV template, or map columns from your own schedule. Valid rows become the same order-draft lines as the designer — design JSON plus LightBurn SVG. Stripe checkout is not live yet.",
+    lede: "Download the TraffLabels CSV template, or map columns from your own schedule. Width and height are separate millimetre columns — any positive size, not a preset. Valid rows become the same order-draft lines as the designer — design JSON plus LightBurn SVG. Stripe checkout is not live yet.",
   },
 } as const;
 

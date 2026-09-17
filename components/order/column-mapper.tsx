@@ -8,7 +8,8 @@ import {
 
 const FIELD_LABELS: Record<CsvField, string> = {
   colour: "Colour",
-  size: "Size",
+  width: "Width (mm)",
+  height: "Height (mm)",
   text: "Text",
   qty: "Qty",
 };
@@ -32,7 +33,9 @@ export function ColumnMapper({
         </h3>
         <p className="mt-1 text-sm leading-relaxed text-paper/60">
           Headers did not match the template exactly. Choose which column is
-          Colour, Size, Text, and Qty. Other columns are ignored.
+          Colour, Width (mm), Height (mm), Text, and Qty. Other columns are
+          ignored. Accepted width/height names include width, height, w, h,
+          width_mm, and height_mm.
         </p>
       </div>
 

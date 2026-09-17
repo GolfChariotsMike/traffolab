@@ -18,9 +18,10 @@ import {
 import {
   TEMPLATE_DOWNLOAD_PATH,
   allowedColourHint,
-  allowedSizeHint,
+  dimensionHint,
   downloadTemplateCsv,
   headerFingerprint,
+  headersMatchTemplate,
   isCompleteMapping,
   loadCsvDocument,
   orderLinesFromPreview,
@@ -148,9 +149,14 @@ export function CsvUpload() {
                 Download a template or map your own file
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-paper/65">
-                Required columns: <span className="text-paper">colour, size, text, qty</span>.
-                Use a colour id or a label such as Yellow / black. Sizes must be a
-                preset ({allowedSizeHint()}). Use <code className="text-laser">|</code> or{" "}
+                Required columns:{" "}
+                <span className="text-paper">colour, width, height, text, qty</span>.
+                Width and height are {dimensionHint()}. Aliases such as{" "}
+                <span className="text-paper">w</span>, <span className="text-paper">h</span>,{" "}
+                <span className="text-paper">width_mm</span>, and{" "}
+                <span className="text-paper">height_mm</span> also map. Use a colour
+                id or a label such as Yellow / black. Use{" "}
+                <code className="text-laser">|</code> or{" "}
                 <code className="text-laser">\n</code> for a second line.
               </p>
             </div>
@@ -292,16 +298,6 @@ export function CsvUpload() {
   );
 }
 
-function headersMatchTemplate(headers: string[]) {
-  const normalized = headers.map((header) => header.trim().toLowerCase());
-  return (
-    normalized[0] === "colour" &&
-    normalized[1] === "size" &&
-    normalized[2] === "text" &&
-    normalized[3] === "qty"
-  );
-}
-
 function PreviewTable({ rows }: { rows: PreviewRow[] }) {
   return (
     <div className="overflow-x-auto border border-white/10">
@@ -311,7 +307,8 @@ function PreviewTable({ rows }: { rows: PreviewRow[] }) {
           <tr>
             <th className="px-3 py-2 font-medium">#</th>
             <th className="px-3 py-2 font-medium">Colour</th>
-            <th className="px-3 py-2 font-medium">Size</th>
+            <th className="px-3 py-2 font-medium">Width</th>
+            <th className="px-3 py-2 font-medium">Height</th>
             <th className="px-3 py-2 font-medium">Text</th>
             <th className="px-3 py-2 font-medium">Qty</th>
             <th className="px-3 py-2 font-medium">Status</th>
@@ -338,7 +335,12 @@ function PreviewTable({ rows }: { rows: PreviewRow[] }) {
                   </div>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs text-paper/85">
-                  {row.values.size || "—"}
+                  {row.widthMm !== null ? `${row.widthMm} mm` : row.values.width || "—"}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-paper/85">
+                  {row.heightMm !== null
+                    ? `${row.heightMm} mm`
+                    : row.values.height || "—"}
                 </td>
                 <td className="px-3 py-2 whitespace-pre-line text-paper/85">
                   {row.text || row.values.text || "—"}

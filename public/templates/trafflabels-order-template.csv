@@ -1,4 +1,4 @@
-colour,size,text,qty
-yellow-black,20x10,MAIN SWITCH,10
-white-black,60x20,PV ISOLATOR,4
-red-white,100x50,DB-1 CIRCUIT 14,2
+colour,width,height,text,qty
+yellow-black,45,12,MAIN SWITCH,10
+white-black,100,25,PV ISOLATOR,4
+red-white,60,20,DB-1 CIRCUIT 14,2

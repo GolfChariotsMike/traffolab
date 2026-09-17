@@ -25,4 +25,4 @@ npm run build
 - `/traffolyte-labels/welshpool/`
 - `/order/` — choose Design online or Upload a list
 - `/order/?mode=designer` — TraffLabels canvas designer
-- `/order/?mode=upload` — CSV schedule upload (`colour,size,text,qty`)
+- `/order/?mode=upload` — CSV schedule upload (`colour,width,height,text,qty` in mm)
