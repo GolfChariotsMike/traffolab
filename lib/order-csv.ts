@@ -212,7 +212,7 @@ export function allowedColourHint() {
 }
 
 export function dimensionHint() {
-  return `width and height in millimetres (any positive size up to ${MAX_PLATE_WIDTH_MM} × ${MAX_PLATE_HEIGHT_MM})`;
+  return `any positive size in millimetres (up to ${MAX_PLATE_WIDTH_MM} × ${MAX_PLATE_HEIGHT_MM})`;
 }
 
 export function emptyMapping(): ColumnMapping {
