@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,8 +46,14 @@ function plateFields(lines: OrderLine[]) {
 }
 
 export function OrderSummary() {
+  const searchParams = useSearchParams();
+  const cancelled = searchParams.get("cancelled") === "1";
+
   const [lines, setLines] = useState<OrderLine[]>(readStoredOrderLines);
   const [shipping, setShipping] = useState<ShippingMethodId>(readStoredShipping);
+  const [email, setEmail] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const quote = quoteOrder(plateFields(lines), shipping);
 
   const persistLines = (next: OrderLine[]) => {
@@ -59,9 +66,71 @@ export function OrderSummary() {
     localStorage.setItem(SHIPPING_STORAGE_KEY, id);
   };
 
+  async function startCheckout() {
+    setPayError(null);
+    const trimmed = email.trim();
+    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setPayError("Enter a valid email so Stripe can send the receipt.");
+      return;
+    }
+    if (lines.length === 0) {
+      setPayError("Add at least one plate before checkout.");
+      return;
+    }
+
+    setPaying(true);
+    try {
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerEmail: trimmed,
+          shippingMethodId: shipping,
+          lines: lines.map((line) => ({
+            widthMm: line.design.widthMm,
+            heightMm: line.design.heightMm,
+            qty: line.qty,
+            designSummary: designSummary(line.design),
+          })),
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        url?: string;
+        error?: string;
+      } | null;
+
+      if (!response.ok || !payload?.ok || !payload.url) {
+        setPayError(
+          payload?.error ||
+            (response.status === 503
+              ? "Checkout unavailable. Card payment is not configured yet."
+              : "Could not start checkout. Try again shortly.")
+        );
+        setPaying(false);
+        return;
+      }
+
+      window.location.assign(payload.url);
+    } catch {
+      setPayError("Could not start checkout. Try again shortly.");
+      setPaying(false);
+    }
+  }
+
   return (
     <section className="trafflabels-designer font-industrial">
       <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 md:py-10">
+        {cancelled ? (
+          <p
+            role="status"
+            className="border border-white/15 bg-charcoal/60 px-4 py-3 text-sm text-paper/80"
+          >
+            Checkout was cancelled. Your draft is still here — adjust shipping or
+            try Pay now again.
+          </p>
+        ) : null}
+
         {lines.length === 0 ? (
           <div className="border border-white/10 bg-charcoal/50 px-5 py-6">
             <h2 className="font-heading text-xl font-semibold text-paper">
@@ -231,11 +300,43 @@ export function OrderSummary() {
                   </dd>
                 </div>
               </dl>
+
+              <div className="mt-5 flex flex-col gap-2">
+                <Label htmlFor="checkout-email" className="text-[11px] text-paper/65">
+                  Email for receipt
+                </Label>
+                <Input
+                  id="checkout-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  disabled={paying}
+                  placeholder="you@company.com.au"
+                  className="h-10 bg-charcoal"
+                />
+              </div>
+
               <p className="mt-4 text-sm leading-relaxed text-paper/65">
-                Payment is not connected yet. This TraffLabels total is the amount
-                checkout will charge: plate subtotal plus the shipping option you
-                choose. Prices are AUD.
+                Pay with card via Stripe Checkout. The server recalculates plate
+                and shipping totals in AUD before opening the payment page.
               </p>
+
+              <Button
+                type="button"
+                className="mt-4 w-full bg-laser text-charcoal hover:bg-laser/90 disabled:opacity-60"
+                disabled={paying}
+                onClick={startCheckout}
+              >
+                {paying ? "Starting checkout…" : "Pay now"}
+              </Button>
+
+              {payError ? (
+                <p role="alert" className="mt-3 text-sm text-red-300">
+                  {payError}
+                </p>
+              ) : null}
             </div>
 
             <div className="text-[11px] leading-relaxed text-paper/45">

@@ -20,6 +20,7 @@ export const routes = {
   orderDesigner: "/order/?mode=designer",
   orderUpload: "/order/?mode=upload",
   orderCheckout: "/order/?mode=checkout",
+  orderSuccess: "/order/success/",
   contact: "/contact/",
 } as const;
 

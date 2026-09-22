@@ -31,7 +31,7 @@ const COPY = {
   },
   checkout: {
     title: "Order summary",
-    lede: "Check each plate, choose Australia-wide shipping, and confirm the AUD total. Card payment is not connected yet — this summary is the amount TraffLabels checkout will charge.",
+    lede: "Check each plate, choose Australia-wide shipping, enter your email, and pay the AUD total with Stripe Checkout.",
   },
 } as const;
 
