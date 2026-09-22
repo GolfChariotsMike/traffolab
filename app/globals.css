@@ -166,3 +166,23 @@
     @apply font-sans;
   }
 }
+
+@keyframes hero-order-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.hero-order-cta {
+  animation: hero-order-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-order-cta {
+    animation: none;
+  }
+}

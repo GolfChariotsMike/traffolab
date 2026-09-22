@@ -82,7 +82,14 @@ export function CsvUpload() {
       setAddedCount(0);
       setContinued(false);
       if (!file) return;
-      if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
+      const fileName = file.name.toLowerCase();
+      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        setFileError(
+          "Excel files are not read yet. Save the sheet as CSV and upload that."
+        );
+        return;
+      }
+      if (!fileName.endsWith(".csv") && file.type !== "text/csv") {
         setFileError("Upload a .csv file.");
         return;
       }
