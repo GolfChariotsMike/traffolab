@@ -7,29 +7,34 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  MAX_FONT_MM,
   MIN_FONT_MM,
+  maxFontForPlate,
+  type LabelDesign,
   type TextAlign,
   type TextObject,
 } from "@/lib/label-design";
 
 export function ObjectInspector({
   object,
+  plate,
   textareaRef,
   onChange,
 }: {
   object: TextObject | null;
+  plate: Pick<LabelDesign, "widthMm" | "heightMm">;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   onChange: (patch: Partial<TextObject>) => void;
 }) {
   if (!object) {
     return (
       <div className="border border-dashed border-white/15 px-3 py-6 text-sm text-paper/55">
-        Select a legend on the plate, or add text. Drag to move. Delete removes
-        the selected object.
+        Select a legend on the plate, or add text. Drag a legend to move it,
+        and drag its handles to resize. Delete removes the selected object.
       </div>
     );
   }
+
+  const sizeMax = maxFontForPlate(object.text, plate);
 
   return (
     <div className="flex flex-col gap-4">
@@ -56,8 +61,8 @@ export function ObjectInspector({
             id="legend-size"
             type="number"
             min={MIN_FONT_MM}
-            max={MAX_FONT_MM}
-            step={0.5}
+            max={sizeMax}
+            step={0.1}
             value={object.fontSize}
             onChange={(event) =>
               onChange({ fontSize: Number(event.target.value) })
@@ -67,15 +72,17 @@ export function ObjectInspector({
         </div>
         <Slider
           min={MIN_FONT_MM}
-          max={MAX_FONT_MM}
-          step={0.5}
+          max={sizeMax}
+          step={0.1}
           value={[object.fontSize]}
           onValueChange={(value) => {
             const next = value[0];
             if (typeof next === "number") onChange({ fontSize: next });
           }}
         />
-        <p className="text-[11px] text-paper/45">{object.fontSize} mm tall</p>
+        <p className="text-[11px] text-paper/45">
+          {object.fontSize} mm tall. Drag a handle on the plate to resize.
+        </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
