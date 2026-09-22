@@ -67,10 +67,20 @@ export function PlateCanvas({
   const stageRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<DragState | null>(null);
+  const stopDragRef = useRef<(() => void) | null>(null);
+  const onMoveRef = useRef(onMove);
+  const onResizeRef = useRef(onResize);
+  const plateRef = useRef({ widthMm: design.widthMm, heightMm: design.heightMm });
   const [scale, setScale] = useState(4);
   const [dragging, setDragging] = useState(false);
   const colours = colourPairOf(design);
   const selected = design.objects.find((object) => object.id === selectedId);
+
+  useEffect(() => {
+    onMoveRef.current = onMove;
+    onResizeRef.current = onResize;
+    plateRef.current = { widthMm: design.widthMm, heightMm: design.heightMm };
+  });
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -94,6 +104,7 @@ export function PlateCanvas({
 
   useEffect(() => {
     return () => {
+      stopDragRef.current?.();
       document.body.style.cursor = "";
     };
   }, []);
@@ -103,16 +114,65 @@ export function PlateCanvas({
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return null;
+    const plate = plateRef.current;
     return {
-      x: ((event.clientX - rect.left) / rect.width) * design.widthMm,
-      y: ((event.clientY - rect.top) / rect.height) * design.heightMm,
+      x: ((event.clientX - rect.left) / rect.width) * plate.widthMm,
+      y: ((event.clientY - rect.top) / rect.height) * plate.heightMm,
     };
   }
 
   function endDrag() {
-    dragRef.current = null;
-    setDragging(false);
-    document.body.style.cursor = "";
+    stopDragRef.current?.();
+  }
+
+  function trackDrag(cursor: string, drag: DragState) {
+    endDrag();
+    dragRef.current = drag;
+    setDragging(true);
+    document.body.style.cursor = cursor;
+
+    const move = (event: PointerEvent) => {
+      if (event.pointerType === "mouse" && event.buttons === 0) {
+        finish();
+        return;
+      }
+      const point = clientToMm(event);
+      const current = dragRef.current;
+      if (!point || !current) return;
+      if (current.mode === "move") {
+        onMoveRef.current(
+          current.id,
+          point.x - current.offset.x,
+          point.y - current.offset.y
+        );
+        return;
+      }
+      onResizeRef.current(
+        current.id,
+        resizeTextObject(
+          current.start,
+          plateRef.current,
+          current.handle,
+          point,
+          current.origin
+        )
+      );
+    };
+
+    const finish = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      if (stopDragRef.current === finish) stopDragRef.current = null;
+      dragRef.current = null;
+      setDragging(false);
+      document.body.style.cursor = "";
+    };
+
+    stopDragRef.current = finish;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
   }
 
   function handlePointerDown(
@@ -124,14 +184,11 @@ export function PlateCanvas({
     const point = clientToMm(event);
     if (!point) return;
     onSelect(object.id);
-    dragRef.current = {
+    trackDrag("grabbing", {
       mode: "move",
       id: object.id,
       offset: { x: point.x - object.x, y: point.y - object.y },
-    };
-    setDragging(true);
-    document.body.style.cursor = "grabbing";
-    event.currentTarget.setPointerCapture(event.pointerId);
+    });
   }
 
   function handleResizePointerDown(
@@ -144,35 +201,13 @@ export function PlateCanvas({
     const point = clientToMm(event);
     if (!point) return;
     onSelect(object.id);
-    dragRef.current = {
+    trackDrag(HANDLE_CURSOR[handle], {
       mode: "resize",
       id: object.id,
       handle,
       start: object,
       origin: point,
-    };
-    setDragging(true);
-    document.body.style.cursor = HANDLE_CURSOR[handle];
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }
-
-  function handlePointerMove(event: React.PointerEvent<SVGElement>) {
-    const drag = dragRef.current;
-    if (!drag) return;
-    const point = clientToMm(event);
-    if (!point) return;
-    if (drag.mode === "move") {
-      onMove(drag.id, point.x - drag.offset.x, point.y - drag.offset.y);
-      return;
-    }
-    const next = resizeTextObject(
-      drag.start,
-      design,
-      drag.handle,
-      point,
-      drag.origin
-    );
-    onResize(drag.id, next);
+    });
   }
 
   return (
@@ -200,9 +235,6 @@ export function PlateCanvas({
         className="max-h-[calc(100%-2.5rem)] max-w-[calc(100%-2rem)] touch-none shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
         style={{ overflow: "visible" }}
         onPointerDown={() => onSelect(null)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
       >
         <rect
           x={0}
@@ -222,9 +254,6 @@ export function PlateCanvas({
             dragging={dragging && object.id === selectedId}
             scale={scale}
             onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
           />
         ))}
 
@@ -233,9 +262,6 @@ export function PlateCanvas({
             object={selected}
             scale={scale}
             onPointerDown={handleResizePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
           />
         ) : null}
       </svg>
@@ -249,9 +275,6 @@ function TextNode({
   dragging,
   scale,
   onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
 }: {
   object: TextObject;
   fill: string;
@@ -261,9 +284,6 @@ function TextNode({
     event: React.PointerEvent<SVGGElement>,
     object: TextObject
   ) => void;
-  onPointerMove: (event: React.PointerEvent<SVGElement>) => void;
-  onPointerUp: () => void;
-  onPointerCancel: () => void;
 }) {
   const metrics = textMetrics(object);
   const lines = textLines(object.text);
@@ -273,9 +293,6 @@ function TextNode({
     <g
       className={cn(dragging ? "cursor-grabbing" : "cursor-grab")}
       onPointerDown={(event) => onPointerDown(event, object)}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
     >
       <rect
         x={metrics.left - slop}
@@ -312,9 +329,6 @@ function ResizeHandles({
   object,
   scale,
   onPointerDown,
-  onPointerMove,
-  onPointerUp,
-  onPointerCancel,
 }: {
   object: TextObject;
   scale: number;
@@ -323,12 +337,9 @@ function ResizeHandles({
     object: TextObject,
     handle: ResizeHandle
   ) => void;
-  onPointerMove: (event: React.PointerEvent<SVGElement>) => void;
-  onPointerUp: () => void;
-  onPointerCancel: () => void;
 }) {
-  const visual = Math.max(8 / scale, 0.55);
-  const hit = Math.max(22 / scale, visual * 1.8);
+  const visual = Math.max(10 / scale, 0.7);
+  const hit = Math.max(28 / scale, visual * 2);
 
   return (
     <g>
@@ -341,12 +352,10 @@ function ResizeHandles({
               width={hit}
               height={hit}
               fill="transparent"
+              pointerEvents="all"
               role="button"
               aria-label={HANDLE_LABEL[point.id]}
               onPointerDown={(event) => onPointerDown(event, object, point.id)}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-              onPointerCancel={onPointerCancel}
             />
             <rect
               x={point.x - visual / 2}
