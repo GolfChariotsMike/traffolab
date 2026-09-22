@@ -5,24 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { colourPairOf, designSummary, type OrderLine } from "@/lib/label-design";
+import { formatAud, priceForPlate, subtotalCents } from "@/lib/pricing";
 import { routes } from "@/lib/site";
 
 export function OrderPanel({
   lines,
-  continued,
   onQty,
   onRemove,
   onContinue,
+  continueDisabled = false,
   onOpenInDesigner,
 }: {
   lines: OrderLine[];
-  continued: boolean;
   onQty: (id: string, qty: number) => void;
   onRemove: (id: string) => void;
   onContinue: () => void;
+  continueDisabled?: boolean;
   onOpenInDesigner?: (line: OrderLine) => void;
 }) {
-  const totalPlates = lines.reduce((sum, line) => sum + line.qty, 0);
+  const platesCents = subtotalCents(
+    lines.map((line) => ({
+      widthMm: line.design.widthMm,
+      heightMm: line.design.heightMm,
+      qty: line.qty,
+    }))
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -35,6 +42,11 @@ export function OrderPanel({
         <ul className="flex flex-col gap-3">
           {lines.map((line, index) => {
             const colours = colourPairOf(line.design);
+            const quote = priceForPlate(
+              line.design.widthMm,
+              line.design.heightMm,
+              line.qty
+            );
             return (
               <li
                 key={line.id}
@@ -52,11 +64,19 @@ export function OrderPanel({
                       {designSummary(line.design)}
                     </p>
                   </div>
-                  <span
-                    aria-hidden
-                    className="size-8 shrink-0 border border-black/30"
-                    style={{ backgroundColor: colours.face }}
-                  />
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="font-mono text-sm text-laser">
+                      {formatAud(quote.lineCents)}
+                    </span>
+                    <span className="text-[10px] text-paper/45">
+                      {formatAud(quote.unitCents)} each
+                    </span>
+                    <span
+                      aria-hidden
+                      className="size-8 border border-black/30"
+                      style={{ backgroundColor: colours.face }}
+                    />
+                  </div>
                 </div>
                 <div className="mt-3 flex items-end justify-between gap-3">
                   <div className="flex flex-col gap-1">
@@ -105,26 +125,29 @@ export function OrderPanel({
         </ul>
       )}
 
+      {lines.length > 0 ? (
+        <div className="flex items-center justify-between border-t border-white/10 pt-3">
+          <span className="font-mono text-[10px] tracking-[0.16em] text-paper/50 uppercase">
+            Subtotal
+          </span>
+          <span className="font-mono text-sm text-paper">{formatAud(platesCents)}</span>
+        </div>
+      ) : null}
+
       <Button
         type="button"
         variant="outline"
         className="border-white/15"
         onClick={onContinue}
+        disabled={continueDisabled}
       >
-        Continue
+        Review order
       </Button>
 
-      {continued ? (
-        <div className="border border-laser/40 bg-laser/10 px-3 py-3 text-sm leading-relaxed text-paper/85">
-          Draft ready — {totalPlates} plate{totalPlates === 1 ? "" : "s"} held in
-          this browser with design JSON and LightBurn SVG. Stripe checkout is the
-          next step and is not live yet.
-        </div>
-      ) : (
-        <p className="text-[11px] leading-relaxed text-paper/45">
-          Checkout and inventory are next. This panel only captures the job.
-        </p>
-      )}
+      <p className="text-[11px] leading-relaxed text-paper/45">
+        Subtotal is plates only, in AUD. Australia-wide shipping is chosen on the
+        order summary.
+      </p>
 
       <p className="text-[11px] leading-relaxed text-paper/40">
         Need a full schedule?{" "}

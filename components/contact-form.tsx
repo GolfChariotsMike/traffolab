@@ -5,8 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ATTACHMENT_ACCEPT,
+  ATTACHMENT_HELP,
+  validateAttachment,
+} from "@/lib/contact-attachment";
 
 type Status = "idle" | "sending" | "sent" | "error";
+
+const SEND_ERROR = "Could not send that message. Try again shortly.";
 
 export function ContactForm() {
   const [status, setStatus] = useState<Status>("idle");
@@ -16,20 +23,26 @@ export function ContactForm() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
+    const selected = data.get("attachment");
+    if (selected instanceof File && (selected.name.trim() || selected.size > 0)) {
+      const checked = validateAttachment({
+        name: selected.name,
+        size: selected.size,
+      });
+      if (!checked.ok) {
+        setStatus("error");
+        setError(checked.error);
+        return;
+      }
+    }
+
     setStatus("sending");
     setError(null);
 
     try {
-      const response = await fetch("/api/contact", {
+      const response = await fetch("/api/contact/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: String(data.get("name") ?? ""),
-          email: String(data.get("email") ?? ""),
-          company: String(data.get("company") ?? ""),
-          message: String(data.get("message") ?? ""),
-          website: String(data.get("website") ?? ""),
-        }),
+        body: data,
       });
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -37,14 +50,14 @@ export function ContactForm() {
       } | null;
       if (!response.ok || !payload?.ok) {
         setStatus("error");
-        setError(payload?.error || "Could not send that message. Try again shortly.");
+        setError(payload?.error || SEND_ERROR);
         return;
       }
       form.reset();
       setStatus("sent");
     } catch {
       setStatus("error");
-      setError("Could not send that message. Try again shortly.");
+      setError(SEND_ERROR);
     }
   }
 
@@ -100,10 +113,22 @@ export function ContactForm() {
           name="message"
           required
           rows={6}
-          placeholder="Legends, sizes, colours, and quantity."
+          placeholder="Legends, sizes, colours, and quantity — or a note about the file."
           disabled={status === "sending"}
           className="min-h-32 rounded-none"
         />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="contact-attachment">File</Label>
+        <Input
+          id="contact-attachment"
+          name="attachment"
+          type="file"
+          accept={ATTACHMENT_ACCEPT}
+          disabled={status === "sending"}
+          className="h-11 rounded-none py-2 file:text-foreground"
+        />
+        <p className="text-xs text-muted-foreground">{ATTACHMENT_HELP}</p>
       </div>
       <Button
         type="submit"

@@ -7,7 +7,7 @@ import { absoluteUrl, productName, routes } from "@/lib/site";
 export const metadata: Metadata = {
   title: `Contact | ${productName}`,
   description:
-    "Send a TraffLabels job without formatting a file. Email the Stik Stickers group in Perth.",
+    "Send TraffLabels a job by email. Attach a CSV, spreadsheet, PDF, or photo, or type the legend.",
   alternates: { canonical: absoluteUrl(routes.contact) },
 };
 
@@ -17,7 +17,7 @@ export default function ContactPage() {
       <PageHero
         eyebrow={productName}
         title="Contact us"
-        lede="Send a schedule or a single legend without formatting a file. TraffLabels engraves Traffolyte in WA under the Stik Stickers group."
+        lede="Attach a schedule, spreadsheet, PDF, or photo, or type the job. TraffLabels engraves Traffolyte labels in WA."
         crumbs={[{ label: "Contact" }]}
       />
       <Section>
