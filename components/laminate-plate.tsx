@@ -18,6 +18,13 @@ const palettes = {
   },
 } as const;
 
+/** Scale the legend so engraved type fills the plate, like a cut Traffolyte nameplate. */
+function legendFontSize(legend: string) {
+  const length = Math.max(legend.trim().length, 1);
+  const cqi = Math.min(15, Math.max(5.4, 132 / length));
+  return `clamp(1.35rem, ${cqi.toFixed(2)}cqi, 3.6rem)`;
+}
+
 export function LaminatePlate({
   legend,
   caption,
@@ -40,23 +47,17 @@ export function LaminatePlate({
           style={{ background: colors.edge }}
         />
         <div
-          className="relative overflow-hidden rounded-[3px] px-4 py-5 shadow-[0_12px_28px_rgba(0,0,0,0.28)]"
+          className="@container relative overflow-hidden rounded-[3px] px-2.5 py-2 shadow-[0_12px_28px_rgba(0,0,0,0.28)] md:px-3 md:py-2.5"
           style={{
             background: colors.face,
             boxShadow: `inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.22), 0 12px 28px rgba(0,0,0,0.28)`,
           }}
         >
           <p
-            className="font-heading text-xl font-semibold tracking-[0.04em] uppercase md:text-2xl"
-            style={{ color: colors.core }}
+            className="text-center font-heading leading-none font-bold tracking-[0.01em] uppercase"
+            style={{ color: colors.core, fontSize: legendFontSize(legend) }}
           >
             {legend}
-          </p>
-          <p
-            className="mt-2 font-mono text-[10px] tracking-[0.16em] uppercase"
-            style={{ color: colors.core, opacity: 0.55 }}
-          >
-            Traffolyte · 2-layer
           </p>
         </div>
       </div>

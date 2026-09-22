@@ -10,10 +10,10 @@ export function HomeHero() {
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] md:items-center md:py-20">
         <div className="flex flex-col gap-6">
           <p className="font-mono text-[11px] tracking-[0.18em] text-laser uppercase">
-            {brandName} · Perth · Traffolyte
+            {brandName} · Traffolyte
           </p>
           <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance md:text-5xl">
-            Engraved Traffolyte labels for Perth trades and custom work
+            Engraved Traffolyte labels for trades and custom work
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-haze md:text-lg">
             Permanent two-colour laminate — not vinyl. Trade crews order circuit
@@ -21,24 +21,16 @@ export function HomeHero() {
             plate. Design online in the TraffLabels plate designer; we nest the
             job for the laser and engrave in Australia.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div>
             <Button
               asChild
               size="lg"
-              className="h-12 bg-laser px-6 text-base font-semibold text-charcoal hover:bg-laser/90"
+              className="h-16 gap-3 bg-laser px-10 text-xl font-bold text-charcoal shadow-[0_10px_28px_rgba(254,225,0,0.38)] hover:bg-laser/90 md:h-20 md:px-12 md:text-2xl [&_svg:not([class*='size-'])]:size-7"
             >
               <Link href={routes.order}>
                 Order
                 <ArrowRightIcon data-icon="inline-end" />
               </Link>
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="outline"
-              className="h-12 border-paper/20 bg-transparent px-6 text-paper hover:bg-paper/10 hover:text-paper"
-            >
-              <Link href={routes.hub}>Trade labels</Link>
             </Button>
           </div>
         </div>
@@ -61,6 +53,9 @@ export function HomeHero() {
             caption="Black / white — circuit IDs and switchboard schedules."
             className="[&_figcaption]:text-haze"
           />
+          <p className="text-xs leading-relaxed text-haze">
+            Traffolyte — engraved two-colour laminate.
+          </p>
         </div>
       </div>
     </section>
