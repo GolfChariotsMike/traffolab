@@ -21,11 +21,11 @@ export function HomeHero() {
             plate. Design online in the TraffLabels plate designer; we nest the
             job for the laser and engrave in Australia.
           </p>
-          <div>
+          <div className="w-full">
             <Button
               asChild
               size="lg"
-              className="h-16 gap-3 bg-laser px-10 text-xl font-bold text-charcoal shadow-[0_10px_28px_rgba(254,225,0,0.38)] hover:bg-laser/90 md:h-20 md:px-12 md:text-2xl [&_svg:not([class*='size-'])]:size-7"
+              className="hero-order-cta h-16 w-full justify-center gap-3 bg-laser px-10 text-xl font-bold text-charcoal shadow-[0_10px_28px_rgba(254,225,0,0.38)] hover:bg-laser/90 md:h-20 md:text-2xl [&_svg:not([class*='size-'])]:size-7"
             >
               <Link href={routes.order}>
                 Order
