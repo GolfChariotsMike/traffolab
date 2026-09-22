@@ -20,7 +20,11 @@ export const routes = {
   orderDesigner: "/order/?mode=designer",
   orderUpload: "/order/?mode=upload",
   orderCheckout: "/order/?mode=checkout",
+  contact: "/contact/",
 } as const;
+
+/** Inbox used when CONTACT_TO is unset. */
+export const contactEmail = "info@stikstickers.com";
 
 export type SiteRoute = (typeof routes)[keyof typeof routes];
 
@@ -60,6 +64,7 @@ export const sitemapPaths = [
   routes.wangara,
   routes.welshpool,
   routes.order,
+  routes.contact,
 ] as const;
 
 export function absoluteUrl(path: string) {
