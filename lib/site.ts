@@ -23,7 +23,7 @@ export const routes = {
   contact: "/contact/",
 } as const;
 
-/** Published on the Stik Stickers store, the group behind TraffLabels. */
+/** Published on the Stik Stickers store; also the fallback when CONTACT_TO is unset. */
 export const contactEmail = "info@stikstickers.com";
 
 export type SiteRoute = (typeof routes)[keyof typeof routes];

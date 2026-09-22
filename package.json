@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs lib/pricing.test.ts && node --experimental-strip-types --import ./scripts/register-ts.mjs lib/order-csv.test.ts"
+    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs lib/pricing.test.ts && node --experimental-strip-types --import ./scripts/register-ts.mjs lib/order-csv.test.ts && node --experimental-strip-types --import ./scripts/register-ts.mjs lib/contact-attachment.test.ts"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

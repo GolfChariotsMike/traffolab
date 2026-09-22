@@ -29,7 +29,7 @@ export function OrderChooser() {
           href={routes.contact}
           kicker="No formatting"
           title="Email us"
-          body="Don't have time to format the sheet? Send what you've got. We'll send an invoice or a payment link."
+          body="Attach a CSV, spreadsheet, PDF, or photo if the sheet is not ready for the designer. TraffLabels replies by email."
           action="Email us"
           icon={<MailIcon className="size-6" />}
         />

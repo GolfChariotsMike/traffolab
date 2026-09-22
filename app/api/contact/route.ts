@@ -1,13 +1,24 @@
 import { NextResponse } from "next/server";
+import {
+  validateAttachment,
+  type OutboundAttachment,
+} from "@/lib/contact-attachment";
 import { sendJobEmail, type JobEnquiry } from "@/lib/contact-mail";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SEND_ERROR = "Could not send that message. Try again shortly.";
 
+export const runtime = "nodejs";
+
+function field(form: FormData, name: string) {
+  const value = form.get(name);
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export async function POST(request: Request) {
-  let body: Record<string, unknown>;
+  let form: FormData;
   try {
-    body = await request.json();
+    form = await request.formData();
   } catch {
     return NextResponse.json(
       { ok: false, error: "Invalid request." },
@@ -15,15 +26,15 @@ export async function POST(request: Request) {
     );
   }
 
-  if (String(body.website ?? "").trim()) {
+  if (field(form, "website")) {
     return NextResponse.json({ ok: true });
   }
 
   const enquiry: JobEnquiry = {
-    name: String(body.name ?? "").trim(),
-    email: String(body.email ?? "").trim(),
-    company: String(body.company ?? "").trim(),
-    message: String(body.message ?? "").trim(),
+    name: field(form, "name"),
+    email: field(form, "email"),
+    company: field(form, "company"),
+    message: field(form, "message"),
   };
 
   if (!enquiry.name || !enquiry.email || !enquiry.message) {
@@ -50,7 +61,35 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await sendJobEmail(enquiry);
+  const uploaded = form.get("attachment");
+  let attachment: OutboundAttachment | null = null;
+  if (uploaded instanceof File && (uploaded.name.trim() || uploaded.size > 0)) {
+    const checked = validateAttachment({
+      name: uploaded.name,
+      size: uploaded.size,
+    });
+    if (!checked.ok) {
+      return NextResponse.json(
+        { ok: false, error: checked.error },
+        { status: 400 },
+      );
+    }
+    const content = Buffer.from(await uploaded.arrayBuffer());
+    if (content.length !== uploaded.size) {
+      return NextResponse.json(
+        { ok: false, error: "Could not read that file. Try again." },
+        { status: 400 },
+      );
+    }
+    attachment = {
+      filename: checked.filename,
+      contentType: checked.contentType,
+      content,
+    };
+    enquiry.attachmentName = checked.filename;
+  }
+
+  const result = await sendJobEmail(enquiry, attachment);
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: SEND_ERROR }, { status: 502 });
   }
