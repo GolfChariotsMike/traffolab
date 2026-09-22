@@ -10,6 +10,12 @@ import {
   type ColourPairId,
   type LabelDesign,
 } from "@/lib/label-design";
+import {
+  PLATE_RATE_TABLE,
+  formatAreaMm2,
+  formatAud,
+  priceForPlate,
+} from "@/lib/pricing";
 
 export function PlateSetup({
   design,
@@ -23,6 +29,7 @@ export function PlateSetup({
   onAdhesive: (adhesive3m: boolean) => void;
 }) {
   const preset = matchSizePreset(design.widthMm, design.heightMm);
+  const quote = priceForPlate(design.widthMm, design.heightMm, 1);
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,14 +48,22 @@ export function PlateSetup({
               )}
             >
               {item.label}
-              <span className="mt-0.5 block text-[10px] tracking-[0.12em] text-paper/45 uppercase">
-                mm
+              <span className="mt-0.5 block text-[10px] text-paper/45">
+                mm · {formatAud(priceForPlate(item.widthMm, item.heightMm, 1).unitCents)}
               </span>
             </button>
           ))}
         </div>
+        <p className="text-[11px] leading-relaxed text-paper/70">
+          This plate{" "}
+          <span className="font-mono text-laser">{formatAud(quote.unitCents)}</span>{" "}
+          each · {formatAreaMm2(quote.areaMm2)} mm²
+          {quote.minimumApplied
+            ? ` · ${formatAud(Math.round((PLATE_RATE_TABLE[0].minimumAud ?? 0) * 100))} minimum`
+            : ""}
+        </p>
         <p className="text-[11px] leading-relaxed text-paper/45">
-          Preset sizes only. Corners stay square.
+          Preset sizes only. Price follows plate area, in AUD. Corners stay square.
         </p>
       </Fieldset>
 

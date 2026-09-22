@@ -19,6 +19,7 @@ export const routes = {
   order: "/order/",
   orderDesigner: "/order/?mode=designer",
   orderUpload: "/order/?mode=upload",
+  orderCheckout: "/order/?mode=checkout",
   contact: "/contact/",
 } as const;
 
