@@ -173,12 +173,12 @@
     transform: scale(1);
   }
   50% {
-    transform: scale(1.035);
+    transform: scale(1.06);
   }
 }
 
 .hero-order-cta {
-  animation: hero-order-pulse 2.8s ease-in-out infinite;
+  animation: hero-order-pulse 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
