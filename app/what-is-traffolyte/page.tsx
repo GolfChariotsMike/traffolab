@@ -91,7 +91,12 @@ export default function WhatIsTraffolytePage() {
           We stock the pairs boards already use. Custom cores are possible once
           the designer is live; unusual colours may add lead time.
         </SectionHeading>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <LaminatePlate
+            legend="Circuit ID"
+            palette="white-black"
+            caption="White / black"
+          />
           <LaminatePlate
             legend="Main switch"
             palette="yellow-black"
