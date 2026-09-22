@@ -41,10 +41,6 @@ export default function WhatIsTraffolytePage() {
               cut to size in the same pass. That is why Traffolyte survives heat
               and solvents that lift vinyl.
             </SectionHeading>
-            <p className="text-muted-foreground">
-              TraffoLab nests each order as SVG for LightBurn, then engraves in
-              WA. You are buying a cut plate, not a sticker run.
-            </p>
           </div>
           <LaminatePlate
             legend="Circuit 14"
