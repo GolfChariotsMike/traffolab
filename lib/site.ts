@@ -19,7 +19,11 @@ export const routes = {
   order: "/order/",
   orderDesigner: "/order/?mode=designer",
   orderUpload: "/order/?mode=upload",
+  contact: "/contact/",
 } as const;
+
+/** Published on the Stik Stickers store, the group behind TraffLabels. */
+export const contactEmail = "info@stikstickers.com";
 
 export type SiteRoute = (typeof routes)[keyof typeof routes];
 
@@ -59,6 +63,7 @@ export const sitemapPaths = [
   routes.wangara,
   routes.welshpool,
   routes.order,
+  routes.contact,
 ] as const;
 
 export function absoluteUrl(path: string) {

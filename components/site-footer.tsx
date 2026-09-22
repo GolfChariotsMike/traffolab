@@ -8,6 +8,7 @@ const footerNav = [
   { href: routes.whatIs, label: "What is Traffolyte" },
   { href: routes.switchboard, label: "Switchboard labels" },
   { href: routes.order, label: "Order" },
+  { href: routes.contact, label: "Contact" },
 ] as const;
 
 export function SiteFooter() {
