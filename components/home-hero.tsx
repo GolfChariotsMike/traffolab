@@ -16,10 +16,9 @@ export function HomeHero() {
             Engraved Traffolyte labels for trades and custom work
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-haze md:text-lg">
-            Permanent two-colour laminate — not vinyl. Trade crews order circuit
-            IDs and isolator legends. Everyone else can personalise a one-off
-            plate. Design online in the TraffLabels plate designer; we nest the
-            job for the laser and engrave in Australia.
+            Permanent Traffolyte labels for switchboards, isolators, and plant —
+            engraved two-colour laminate, not vinyl. Spec the job online or send
+            a schedule; we laser-engrave in WA.
           </p>
           <div className="w-full">
             <Button
