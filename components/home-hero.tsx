@@ -49,8 +49,8 @@ export function HomeHero() {
           />
           <LaminatePlate
             legend="DB-1 · Circuit 14"
-            palette="black-white"
-            caption="Black / white — circuit IDs and switchboard schedules."
+            palette="white-black"
+            caption="White / black — circuit IDs and switchboard schedules."
             className="[&_figcaption]:text-haze"
           />
           <p className="text-xs leading-relaxed text-haze">

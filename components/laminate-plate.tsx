@@ -11,6 +11,11 @@ const palettes = {
     core: "#F4F5F7",
     edge: "#0B0C0E",
   },
+  "white-black": {
+    face: "#FFFFFF",
+    core: "#111111",
+    edge: "#C5C8CE",
+  },
   "red-white": {
     face: "#B42318",
     core: "#F4F5F7",
