@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { parseCheckoutBody } from "@/lib/checkout";
-import { checkoutOrigin, getStripe } from "@/lib/stripe";
+import {
+  checkoutReturnUrls,
+  resolveCheckoutReturnOrigin,
+} from "@/lib/checkout-return";
+import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -42,9 +46,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const origin = checkoutOrigin();
-  const successUrl = `${origin}/order/success/?session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${origin}/order/?mode=checkout&cancelled=1`;
+  // Return to the shopper's origin. VERCEL_URL is the deployment host and
+  // does not share localStorage with www.trafflabels.com.au.
+  const requestedOrigin =
+    body && typeof body === "object"
+      ? (body as { returnOrigin?: unknown }).returnOrigin
+      : undefined;
+  const origin = resolveCheckoutReturnOrigin({
+    originHeader: request.headers.get("origin"),
+    requestedOrigin,
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    host: request.headers.get("host"),
+    forwardedProto: request.headers.get("x-forwarded-proto"),
+  });
+  const { successUrl, cancelUrl } = checkoutReturnUrls(origin);
 
   try {
     // Do not set payment_method_types — Dashboard dynamic payment methods apply.

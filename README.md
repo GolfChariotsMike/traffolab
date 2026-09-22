@@ -24,7 +24,7 @@ Set these on Vercel (preview first; do not promote until pricing and test keys a
 | `STRIPE_SECRET_KEY` | For checkout | Server-only. Without it, `POST /api/checkout` returns 503 JSON (`Checkout unavailable…`) and the build still succeeds. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional today | Not required for redirect Checkout Sessions; keep for future Elements / client SDK use. |
 | `STRIPE_WEBHOOK_SECRET` | For webhooks | Used by `POST /api/webhooks/stripe` to verify `checkout.session.completed`. |
-| `NEXT_PUBLIC_SITE_URL` | Recommended | Absolute site origin for Checkout `success_url` / `cancel_url`. Falls back to `https://$VERCEL_URL` on Vercel, then `http://localhost:3000`. |
+| `NEXT_PUBLIC_SITE_URL` | Optional | Only a fallback for Checkout return URLs. Pay now sends the browser origin, and cancel/success stay on that host so the localStorage draft survives. Unset, the fallback is `https://www.trafflabels.com.au` — not `VERCEL_URL`. |
 | `RESEND_API_KEY` | Contact form | Existing Resend send. |
 | `RESEND_FROM` | Contact form | Verified from-address. |
 | `CONTACT_TO` | Contact form | Comma-separated inbox; falls back to `info@stikstickers.com`. |

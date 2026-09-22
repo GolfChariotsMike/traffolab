@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ClearPaidDraft } from "@/components/order/clear-paid-draft";
 import { Button } from "@/components/ui/button";
 import { absoluteUrl, productName, routes } from "@/lib/site";
+import { shouldClearOrderDraft } from "@/lib/checkout-return";
+import { checkoutSessionPaymentStatus } from "@/lib/stripe";
 
 export const metadata: Metadata = {
   title: `Payment received | ${productName}`,
@@ -24,6 +27,10 @@ export default async function OrderSuccessPage({
 }) {
   const params = await searchParams;
   const sessionId = firstParam(params.session_id).trim();
+  const paymentStatus = sessionId
+    ? await checkoutSessionPaymentStatus(sessionId)
+    : null;
+  const paid = shouldClearOrderDraft(paymentStatus);
 
   return (
     <section className="border-b bg-ink text-primary-foreground">
@@ -31,12 +38,14 @@ export default async function OrderSuccessPage({
         <p className="font-mono text-[11px] tracking-[0.18em] text-signal uppercase">
           {productName}
         </p>
+        <ClearPaidDraft paymentStatus={paymentStatus} />
         <h1 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">
-          Thanks — payment received
+          {sessionId && !paid ? "Payment not confirmed" : "Thanks — payment received"}
         </h1>
         <p className="max-w-xl text-sm leading-relaxed text-primary-foreground/75 md:text-base">
-          Stripe has confirmed the Checkout Session for this TraffLabels order.
-          We will follow up by email with production and shipping details.
+          {sessionId && !paid
+            ? "Stripe has not confirmed a paid Checkout Session. Your order draft is still in this browser — return to the summary and try Pay now again."
+            : "Stripe has confirmed the Checkout Session for this TraffLabels order. We will follow up by email with production and shipping details."}
         </p>
         {sessionId ? (
           <p className="font-mono text-xs break-all text-primary-foreground/55">
