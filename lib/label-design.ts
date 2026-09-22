@@ -144,7 +144,8 @@ export function clampFreeformPlateSize(widthMm: number, heightMm: number) {
 }
 
 export function roundMm(value: number, step = 0.1) {
-  return Math.round(value / step) * step;
+  const factor = Math.round(1 / step);
+  return Math.round(value * factor) / factor;
 }
 
 export function matchSizePreset(
@@ -197,16 +198,285 @@ export function textMetrics(object: TextObject) {
   return { left, top, width, height, lines };
 }
 
-export function clampObjectToPlate(
-  object: TextObject,
-  plate: Pick<LabelDesign, "widthMm" | "heightMm">
-): TextObject {
+export const RESIZE_HANDLES = [
+  "nw",
+  "n",
+  "ne",
+  "e",
+  "se",
+  "s",
+  "sw",
+  "w",
+] as const;
+
+export type ResizeHandle = (typeof RESIZE_HANDLES)[number];
+
+type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm">;
+type Point = { x: number; y: number };
+
+type TextBox = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  right: number;
+  bottom: number;
+  centerX: number;
+  centerY: number;
+};
+
+type EdgePins = {
+  left?: number;
+  right?: number;
+  top?: number;
+  bottom?: number;
+  centerX?: number;
+  centerY?: number;
+};
+
+function textFactors(text: string) {
+  const lines = textLines(text);
+  const maxChars = Math.max(1, ...lines.map((line) => line.length));
   return {
-    ...object,
-    fontSize: clamp(roundMm(object.fontSize), MIN_FONT_MM, MAX_FONT_MM),
-    x: clamp(roundMm(object.x), 1, plate.widthMm - 1),
-    y: clamp(roundMm(object.y), object.fontSize * 0.7, plate.heightMm - 1),
+    kW: maxChars * CHAR_WIDTH_EM,
+    kH: lines.length * LINE_HEIGHT,
   };
+}
+
+function textBox(object: TextObject): TextBox {
+  const metrics = textMetrics(object);
+  return {
+    left: metrics.left,
+    top: metrics.top,
+    width: metrics.width,
+    height: metrics.height,
+    right: metrics.left + metrics.width,
+    bottom: metrics.top + metrics.height,
+    centerX: metrics.left + metrics.width / 2,
+    centerY: metrics.top + metrics.height / 2,
+  };
+}
+
+/** Largest 0.1 mm font that still fits the legend box on the plate. */
+export function maxFontForPlate(text: string, plate: PlateSize) {
+  const { kW, kH } = textFactors(text);
+  const fit = Math.min(plate.widthMm / kW, plate.heightMm / kH);
+  if (!Number.isFinite(fit) || fit <= MIN_FONT_MM) return MIN_FONT_MM;
+  return clamp(floorMm(Math.min(MAX_FONT_MM, fit)), MIN_FONT_MM, MAX_FONT_MM);
+}
+
+function floorMm(value: number, step = 0.1) {
+  const floored = Math.floor(value / step + 1e-6);
+  return Math.round(floored * step * 1000) / 1000;
+}
+
+function shiftToFit(origin: number, size: number, limit: number) {
+  const end = origin + size;
+  const eps = 1e-4;
+  if (size <= limit + eps) {
+    if (origin < -eps) return -origin;
+    if (end > limit + eps) return limit - end;
+    return 0;
+  }
+  const minOrigin = limit - size;
+  if (origin < minOrigin - eps) return minOrigin - origin;
+  if (origin > eps) return -origin;
+  return 0;
+}
+
+function containTextOnPlate(object: TextObject, plate: PlateSize): TextObject {
+  const metrics = textMetrics(object);
+  const x = object.x + shiftToFit(metrics.left, metrics.width, plate.widthMm);
+  const y = object.y + shiftToFit(metrics.top, metrics.height, plate.heightMm);
+  if (x === object.x && y === object.y) return object;
+  return { ...object, x, y };
+}
+
+export function clampObjectToPlate(object: TextObject, plate: PlateSize): TextObject {
+  const fontSize = clamp(
+    roundMm(object.fontSize),
+    MIN_FONT_MM,
+    maxFontForPlate(object.text, plate)
+  );
+  const rounded = containTextOnPlate(
+    { ...object, fontSize, x: roundMm(object.x), y: roundMm(object.y) },
+    plate
+  );
+  return containTextOnPlate(
+    { ...rounded, x: roundMm(rounded.x), y: roundMm(rounded.y) },
+    plate
+  );
+}
+
+function anchorPoint(handle: ResizeHandle, box: TextBox): Point {
+  switch (handle) {
+    case "nw":
+      return { x: box.right, y: box.bottom };
+    case "n":
+      return { x: box.centerX, y: box.bottom };
+    case "ne":
+      return { x: box.left, y: box.bottom };
+    case "e":
+      return { x: box.left, y: box.centerY };
+    case "se":
+      return { x: box.left, y: box.top };
+    case "s":
+      return { x: box.centerX, y: box.top };
+    case "sw":
+      return { x: box.right, y: box.top };
+    case "w":
+      return { x: box.right, y: box.centerY };
+  }
+}
+
+function pinsFor(handle: ResizeHandle, box: TextBox): EdgePins {
+  switch (handle) {
+    case "nw":
+      return { right: box.right, bottom: box.bottom };
+    case "n":
+      return { centerX: box.centerX, bottom: box.bottom };
+    case "ne":
+      return { left: box.left, bottom: box.bottom };
+    case "e":
+      return { left: box.left, centerY: box.centerY };
+    case "se":
+      return { left: box.left, top: box.top };
+    case "s":
+      return { centerX: box.centerX, top: box.top };
+    case "sw":
+      return { right: box.right, top: box.top };
+    case "w":
+      return { right: box.right, centerY: box.centerY };
+  }
+}
+
+function maxFontForPins(pins: EdgePins, plate: PlateSize, kW: number, kH: number) {
+  let max = MAX_FONT_MM;
+
+  if (pins.centerX !== undefined) {
+    const half = Math.min(pins.centerX, plate.widthMm - pins.centerX);
+    max = Math.min(max, (half * 2) / kW);
+  } else if (pins.left !== undefined) {
+    max = Math.min(max, (plate.widthMm - pins.left) / kW);
+  } else if (pins.right !== undefined) {
+    max = Math.min(max, pins.right / kW);
+  }
+
+  if (pins.centerY !== undefined) {
+    const half = Math.min(pins.centerY, plate.heightMm - pins.centerY);
+    max = Math.min(max, (half * 2) / kH);
+  } else if (pins.top !== undefined) {
+    max = Math.min(max, (plate.heightMm - pins.top) / kH);
+  } else if (pins.bottom !== undefined) {
+    max = Math.min(max, pins.bottom / kH);
+  }
+
+  if (!Number.isFinite(max) || max <= MIN_FONT_MM) return MIN_FONT_MM;
+  return clamp(floorMm(Math.min(MAX_FONT_MM, max)), MIN_FONT_MM, MAX_FONT_MM);
+}
+
+function spanRatio(next: number, start: number) {
+  if (start <= 0.4) return next <= 0 ? 0 : next / Math.max(start, 0.4);
+  return next / start;
+}
+
+function scaleFromPointer(
+  handle: ResizeHandle,
+  box: TextBox,
+  pointer: Point,
+  origin: Point
+) {
+  const anchor = anchorPoint(handle, box);
+  if (handle === "e" || handle === "w") {
+    const sign = handle === "e" ? 1 : -1;
+    return spanRatio(sign * (pointer.x - anchor.x), sign * (origin.x - anchor.x));
+  }
+  if (handle === "n" || handle === "s") {
+    const sign = handle === "s" ? 1 : -1;
+    return spanRatio(sign * (pointer.y - anchor.y), sign * (origin.y - anchor.y));
+  }
+
+  const sdx = origin.x - anchor.x;
+  const sdy = origin.y - anchor.y;
+  const dx = pointer.x - anchor.x;
+  const dy = pointer.y - anchor.y;
+  const startLen = Math.hypot(sdx, sdy);
+  if (startLen < 0.4) return 1;
+  if (dx * sdx + dy * sdy <= 0) return 0;
+  return Math.hypot(dx, dy) / startLen;
+}
+
+function placeWithPins(
+  object: TextObject,
+  pins: EdgePins,
+  kW: number,
+  kH: number
+): TextObject {
+  const fontSize = object.fontSize;
+  const width = kW * fontSize;
+  let x = object.x;
+  let y = object.y;
+
+  if (pins.centerX !== undefined) {
+    if (object.align === "center") x = pins.centerX;
+    else if (object.align === "left") x = pins.centerX - width / 2;
+    else x = pins.centerX + width / 2;
+  } else if (pins.left !== undefined) {
+    if (object.align === "center") x = pins.left + width / 2;
+    else if (object.align === "left") x = pins.left;
+    else x = pins.left + width;
+  } else if (pins.right !== undefined) {
+    if (object.align === "center") x = pins.right - width / 2;
+    else if (object.align === "left") x = pins.right - width;
+    else x = pins.right;
+  }
+
+  if (pins.centerY !== undefined) {
+    y = pins.centerY - fontSize * (kH / 2 - 0.82);
+  } else if (pins.top !== undefined) {
+    y = pins.top + fontSize * 0.82;
+  } else if (pins.bottom !== undefined) {
+    y = pins.bottom - fontSize * (kH - 0.82);
+  }
+
+  return { ...object, x, y };
+}
+
+export function resizeHandlePoints(object: TextObject) {
+  const box = textBox(object);
+  return [
+    { id: "nw" as const, x: box.left, y: box.top },
+    { id: "n" as const, x: box.centerX, y: box.top },
+    { id: "ne" as const, x: box.right, y: box.top },
+    { id: "e" as const, x: box.right, y: box.centerY },
+    { id: "se" as const, x: box.right, y: box.bottom },
+    { id: "s" as const, x: box.centerX, y: box.bottom },
+    { id: "sw" as const, x: box.left, y: box.bottom },
+    { id: "w" as const, x: box.left, y: box.centerY },
+  ];
+}
+
+/**
+ * Scale `start` from a resize handle. `origin` is the pointer position when
+ * the drag began, so the font does not jump if the grab is off the handle centre.
+ */
+export function resizeTextObject(
+  start: TextObject,
+  plate: PlateSize,
+  handle: ResizeHandle,
+  pointer: Point,
+  origin: Point
+): TextObject {
+  const box = textBox(start);
+  const { kW, kH } = textFactors(start.text);
+  const scale = scaleFromPointer(handle, box, pointer, origin);
+  const fontSize = clamp(
+    roundMm(start.fontSize * Math.max(0, scale)),
+    MIN_FONT_MM,
+    maxFontForPins(pinsFor(handle, box), plate, kW, kH)
+  );
+  const placed = placeWithPins({ ...start, fontSize }, pinsFor(handle, box), kW, kH);
+  return clampObjectToPlate(placed, plate);
 }
 
 export function shrinkTextToPlate(

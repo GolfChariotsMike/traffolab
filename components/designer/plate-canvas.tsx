@@ -5,35 +5,70 @@ import { cn } from "@/lib/utils";
 import {
   colourPairOf,
   LINE_HEIGHT,
+  resizeHandlePoints,
+  resizeTextObject,
   textAnchor,
   textLines,
   textMetrics,
   type LabelDesign,
+  type ResizeHandle,
   type TextObject,
 } from "@/lib/label-design";
 
 type Point = { x: number; y: number };
+
+type DragState =
+  | { mode: "move"; id: string; offset: Point }
+  | {
+      mode: "resize";
+      id: string;
+      handle: ResizeHandle;
+      start: TextObject;
+      origin: Point;
+    };
+
+const HANDLE_CURSOR: Record<ResizeHandle, string> = {
+  nw: "nwse-resize",
+  se: "nwse-resize",
+  ne: "nesw-resize",
+  sw: "nesw-resize",
+  n: "ns-resize",
+  s: "ns-resize",
+  e: "ew-resize",
+  w: "ew-resize",
+};
+
+const HANDLE_LABEL: Record<ResizeHandle, string> = {
+  nw: "Resize from top left",
+  n: "Resize from top",
+  ne: "Resize from top right",
+  e: "Resize from right",
+  se: "Resize from bottom right",
+  s: "Resize from bottom",
+  sw: "Resize from bottom left",
+  w: "Resize from left",
+};
 
 export function PlateCanvas({
   design,
   selectedId,
   onSelect,
   onMove,
+  onResize,
   className,
 }: {
   design: LabelDesign;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number) => void;
+  onResize: (id: string, next: Pick<TextObject, "x" | "y" | "fontSize">) => void;
   className?: string;
 }) {
   const stageRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<DragState | null>(null);
   const [scale, setScale] = useState(4);
-  const dragRef = useRef<{
-    id: string;
-    offset: Point;
-  } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const colours = colourPairOf(design);
   const selected = design.objects.find((object) => object.id === selectedId);
 
@@ -57,6 +92,12 @@ export function PlateCanvas({
     return () => observer.disconnect();
   }, [design.widthMm, design.heightMm]);
 
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = "";
+    };
+  }, []);
+
   function clientToMm(event: { clientX: number; clientY: number }): Point | null {
     const svg = svgRef.current;
     if (!svg) return null;
@@ -68,31 +109,70 @@ export function PlateCanvas({
     };
   }
 
+  function endDrag() {
+    dragRef.current = null;
+    setDragging(false);
+    document.body.style.cursor = "";
+  }
+
   function handlePointerDown(
     event: React.PointerEvent<SVGGElement>,
     object: TextObject
   ) {
     event.stopPropagation();
+    event.preventDefault();
     const point = clientToMm(event);
     if (!point) return;
     onSelect(object.id);
     dragRef.current = {
+      mode: "move",
       id: object.id,
       offset: { x: point.x - object.x, y: point.y - object.y },
     };
+    setDragging(true);
+    document.body.style.cursor = "grabbing";
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function handlePointerMove(event: React.PointerEvent<SVGGElement>) {
+  function handleResizePointerDown(
+    event: React.PointerEvent<SVGRectElement>,
+    object: TextObject,
+    handle: ResizeHandle
+  ) {
+    event.stopPropagation();
+    event.preventDefault();
+    const point = clientToMm(event);
+    if (!point) return;
+    onSelect(object.id);
+    dragRef.current = {
+      mode: "resize",
+      id: object.id,
+      handle,
+      start: object,
+      origin: point,
+    };
+    setDragging(true);
+    document.body.style.cursor = HANDLE_CURSOR[handle];
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<SVGElement>) {
     const drag = dragRef.current;
     if (!drag) return;
     const point = clientToMm(event);
     if (!point) return;
-    onMove(drag.id, point.x - drag.offset.x, point.y - drag.offset.y);
-  }
-
-  function endDrag() {
-    dragRef.current = null;
+    if (drag.mode === "move") {
+      onMove(drag.id, point.x - drag.offset.x, point.y - drag.offset.y);
+      return;
+    }
+    const next = resizeTextObject(
+      drag.start,
+      design,
+      drag.handle,
+      point,
+      drag.origin
+    );
+    onResize(drag.id, next);
   }
 
   return (
@@ -120,6 +200,9 @@ export function PlateCanvas({
         className="max-h-[calc(100%-2.5rem)] max-w-[calc(100%-2rem)] touch-none shadow-[0_18px_40px_rgba(0,0,0,0.45)]"
         style={{ overflow: "visible" }}
         onPointerDown={() => onSelect(null)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
       >
         <rect
           x={0}
@@ -136,7 +219,8 @@ export function PlateCanvas({
             key={object.id}
             object={object}
             fill={colours.core}
-            selected={object.id === selectedId}
+            dragging={dragging && object.id === selectedId}
+            scale={scale}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={endDrag}
@@ -145,7 +229,14 @@ export function PlateCanvas({
         ))}
 
         {selected ? (
-          <SelectionBox object={selected} />
+          <ResizeHandles
+            object={selected}
+            scale={scale}
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+          />
         ) : null}
       </svg>
     </div>
@@ -155,7 +246,8 @@ export function PlateCanvas({
 function TextNode({
   object,
   fill,
-  selected,
+  dragging,
+  scale,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -163,31 +255,33 @@ function TextNode({
 }: {
   object: TextObject;
   fill: string;
-  selected: boolean;
+  dragging: boolean;
+  scale: number;
   onPointerDown: (
     event: React.PointerEvent<SVGGElement>,
     object: TextObject
   ) => void;
-  onPointerMove: (event: React.PointerEvent<SVGGElement>) => void;
+  onPointerMove: (event: React.PointerEvent<SVGElement>) => void;
   onPointerUp: () => void;
   onPointerCancel: () => void;
 }) {
   const metrics = textMetrics(object);
   const lines = textLines(object.text);
+  const slop = 6 / scale;
 
   return (
     <g
-      className={cn("cursor-move", selected && "cursor-grabbing")}
+      className={cn(dragging ? "cursor-grabbing" : "cursor-grab")}
       onPointerDown={(event) => onPointerDown(event, object)}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
       <rect
-        x={metrics.left - 0.6}
-        y={metrics.top - 0.4}
-        width={metrics.width + 1.2}
-        height={metrics.height + 0.8}
+        x={metrics.left - slop}
+        y={metrics.top - slop}
+        width={metrics.width + slop * 2}
+        height={metrics.height + slop * 2}
         fill="transparent"
       />
       <text
@@ -214,18 +308,59 @@ function TextNode({
   );
 }
 
-function SelectionBox({ object }: { object: TextObject }) {
-  const metrics = textMetrics(object);
+function ResizeHandles({
+  object,
+  scale,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
+}: {
+  object: TextObject;
+  scale: number;
+  onPointerDown: (
+    event: React.PointerEvent<SVGRectElement>,
+    object: TextObject,
+    handle: ResizeHandle
+  ) => void;
+  onPointerMove: (event: React.PointerEvent<SVGElement>) => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
+}) {
+  const visual = Math.max(8 / scale, 0.55);
+  const hit = Math.max(22 / scale, visual * 1.8);
+
   return (
-    <rect
-      x={metrics.left - 0.8}
-      y={metrics.top - 0.6}
-      width={metrics.width + 1.6}
-      height={metrics.height + 1.2}
-      fill="none"
-      stroke="#FEE100"
-      strokeWidth={0.35}
-      pointerEvents="none"
-    />
+    <g>
+      {resizeHandlePoints(object).map((point) => {
+        return (
+          <g key={point.id} style={{ cursor: HANDLE_CURSOR[point.id] }}>
+            <rect
+              x={point.x - hit / 2}
+              y={point.y - hit / 2}
+              width={hit}
+              height={hit}
+              fill="transparent"
+              role="button"
+              aria-label={HANDLE_LABEL[point.id]}
+              onPointerDown={(event) => onPointerDown(event, object, point.id)}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerCancel}
+            />
+            <rect
+              x={point.x - visual / 2}
+              y={point.y - visual / 2}
+              width={visual}
+              height={visual}
+              fill="#141414"
+              stroke="#FEE100"
+              strokeWidth={Math.max(1.25 / scale, 0.08)}
+              pointerEvents="none"
+            />
+          </g>
+        );
+      })}
+    </g>
   );
 }

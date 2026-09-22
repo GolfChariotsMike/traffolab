@@ -241,6 +241,20 @@ export function LabelDesigner() {
               ),
             }));
           }}
+          onResize={(id, next) => {
+            setSelectedId(id);
+            setDesign((current) => ({
+              ...current,
+              objects: current.objects.map((object) =>
+                object.id === id
+                  ? clampObjectToPlate(
+                      { ...object, x: next.x, y: next.y, fontSize: next.fontSize },
+                      current
+                    )
+                  : object
+              ),
+            }));
+          }}
         />
 
         <aside className="order-3 flex flex-col gap-8 border-t border-white/10 p-4 lg:border-t-0 lg:border-l">
@@ -250,6 +264,7 @@ export function LabelDesigner() {
             </h3>
             <ObjectInspector
               object={selected}
+              plate={design}
               textareaRef={textareaRef}
               onChange={updateSelected}
             />
