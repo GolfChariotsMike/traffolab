@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   DownloadIcon,
   PlusIcon,
@@ -32,15 +33,16 @@ import {
   type OrderLine,
   type TextObject,
 } from "@/lib/label-design";
-import { productName } from "@/lib/site";
+import { formatAud, priceForPlate } from "@/lib/pricing";
+import { productName, routes } from "@/lib/site";
 
 export function LabelDesigner() {
+  const router = useRouter();
   const [design, setDesign] = useState<LabelDesign>(readStoredDesign);
   const [selectedId, setSelectedId] = useState<string | null>(
     () => readStoredDesign().objects[0]?.id ?? null
   );
   const [orderLines, setOrderLines] = useState<OrderLine[]>(readStoredOrderLines);
-  const [continued, setContinued] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const selected = design.objects.find((object) => object.id === selectedId) ?? null;
@@ -99,14 +101,20 @@ export function LabelDesigner() {
 
   const addToOrder = useCallback(() => {
     setOrderLines((current) => [...current, createOrderLine(design)]);
-    setContinued(false);
     showToast("Plate added to order draft");
   }, [design, showToast]);
 
   const continueOrder = useCallback(() => {
-    if (orderLines.length === 0) addToOrder();
-    setContinued(true);
-  }, [addToOrder, orderLines.length]);
+    const next =
+      orderLines.length === 0
+        ? [...orderLines, createOrderLine(design)]
+        : orderLines;
+    if (next !== orderLines) {
+      setOrderLines(next);
+      localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(next));
+    }
+    router.push(routes.orderCheckout);
+  }, [design, orderLines, router]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -156,6 +164,7 @@ export function LabelDesigner() {
     () => JSON.stringify(serializeDesignJson(design), null, 2),
     [design]
   );
+  const liveQuote = priceForPlate(design.widthMm, design.heightMm, 1);
 
   return (
     <section className="trafflabels-designer font-industrial">
@@ -169,7 +178,7 @@ export function LabelDesigner() {
               Plate designer
             </h2>
             <p className="mt-1 truncate text-xs text-paper/55">
-              {designSummary(design)}
+              {designSummary(design)} · {formatAud(liveQuote.unitCents)} each
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -191,7 +200,7 @@ export function LabelDesigner() {
               Export SVG
             </Button>
             <Button type="button" onClick={addToOrder}>
-              Add to order
+              Add to order · {formatAud(liveQuote.unitCents)}
             </Button>
           </div>
         </div>
@@ -251,7 +260,6 @@ export function LabelDesigner() {
             </h3>
             <OrderPanel
               lines={orderLines}
-              continued={continued}
               onQty={(id, qty) =>
                 setOrderLines((current) =>
                   current.map((line) =>

@@ -33,6 +33,7 @@ import {
   type ParsedCsv,
   type PreviewRow,
 } from "@/lib/order-csv";
+import { formatAud, priceForPlate, subtotalCents } from "@/lib/pricing";
 import { routes } from "@/lib/site";
 
 const MAX_CSV_BYTES = 1_000_000;
@@ -46,7 +47,6 @@ export function CsvUpload() {
   const [showMapper, setShowMapper] = useState(false);
   const [orderLines, setOrderLines] = useState<OrderLine[]>(readStoredOrderLines);
   const [addedCount, setAddedCount] = useState(0);
-  const [continued, setContinued] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const fingerprint = document ? headerFingerprint(document.headers) : "";
@@ -54,8 +54,25 @@ export function CsvUpload() {
     () => (document && mapping ? previewMappedRows(document, mapping) : []),
     [document, mapping]
   );
-  const validRows = preview.filter((row) => row.errors.length === 0);
-  const invalidRows = preview.filter((row) => row.errors.length > 0);
+  const validRows = useMemo(
+    () => preview.filter((row) => row.errors.length === 0),
+    [preview]
+  );
+  const invalidRows = useMemo(
+    () => preview.filter((row) => row.errors.length > 0),
+    [preview]
+  );
+  const validSubtotalCents = useMemo(
+    () =>
+      subtotalCents(
+        validRows.flatMap((row) =>
+          row.widthMm === null || row.heightMm === null || row.qty === null
+            ? []
+            : [{ widthMm: row.widthMm, heightMm: row.heightMm, qty: row.qty }]
+        )
+      ),
+    [validRows]
+  );
   const mappingReady = mapping !== null && isCompleteMapping(mapping);
 
   const persistLines = useCallback((next: OrderLine[]) => {
@@ -80,7 +97,6 @@ export function CsvUpload() {
     async (file: File | undefined) => {
       setFileError(null);
       setAddedCount(0);
-      setContinued(false);
       if (!file) return;
       if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
         setFileError("Upload a .csv file.");
@@ -122,7 +138,6 @@ export function CsvUpload() {
     const lines = orderLinesFromPreview(validRows);
     persistLines([...orderLines, ...lines]);
     setAddedCount(lines.length);
-    setContinued(false);
     showToast(
       `${lines.length} plate${lines.length === 1 ? "" : "s"} added to order draft`
     );
@@ -248,6 +263,11 @@ export function CsvUpload() {
                       : `${invalidRows.length} rows have errors and will be skipped.`}
                   </p>
                 ) : null}
+                {validRows.length > 0 ? (
+                  <p className="font-mono text-sm text-paper">
+                    Valid rows total {formatAud(validSubtotalCents)}
+                  </p>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -255,8 +275,7 @@ export function CsvUpload() {
           {addedCount > 0 ? (
             <p className="border border-laser/40 bg-laser/10 px-3 py-3 text-sm text-paper/85">
               Added {addedCount} plate{addedCount === 1 ? "" : "s"} to the draft in
-              this browser. Stripe checkout is not live yet — use Continue when the
-              list looks right.
+              this browser. Review the order when the list and prices look right.
             </p>
           ) : null}
         </div>
@@ -267,7 +286,7 @@ export function CsvUpload() {
           </h3>
           <OrderPanel
             lines={orderLines}
-            continued={continued}
+            continueDisabled={orderLines.length === 0}
             onQty={(id, qty) =>
               persistLines(
                 orderLines.map((line) =>
@@ -280,7 +299,7 @@ export function CsvUpload() {
             onRemove={(id) =>
               persistLines(orderLines.filter((line) => line.id !== id))
             }
-            onContinue={() => setContinued(true)}
+            onContinue={() => router.push(routes.orderCheckout)}
             onOpenInDesigner={openInDesigner}
           />
         </aside>
@@ -298,6 +317,23 @@ export function CsvUpload() {
   );
 }
 
+function PreviewPrice({ row }: { row: PreviewRow }) {
+  if (row.errors.length > 0 || row.widthMm === null || row.heightMm === null || row.qty === null) {
+    return <span className="text-paper/35">—</span>;
+  }
+  const quote = priceForPlate(row.widthMm, row.heightMm, row.qty);
+  return (
+    <span>
+      {formatAud(quote.lineCents)}
+      {quote.qty > 1 ? (
+        <span className="mt-0.5 block text-[10px] text-paper/45">
+          {formatAud(quote.unitCents)} each
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function PreviewTable({ rows }: { rows: PreviewRow[] }) {
   return (
     <div className="overflow-x-auto border border-white/10">
@@ -311,6 +347,7 @@ function PreviewTable({ rows }: { rows: PreviewRow[] }) {
             <th className="px-3 py-2 font-medium">Height</th>
             <th className="px-3 py-2 font-medium">Text</th>
             <th className="px-3 py-2 font-medium">Qty</th>
+            <th className="px-3 py-2 font-medium">Price</th>
             <th className="px-3 py-2 font-medium">Status</th>
           </tr>
         </thead>
@@ -347,6 +384,9 @@ function PreviewTable({ rows }: { rows: PreviewRow[] }) {
                 </td>
                 <td className="px-3 py-2 font-mono text-xs text-paper/85">
                   {row.values.qty || "—"}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs text-paper/85">
+                  <PreviewPrice row={row} />
                 </td>
                 <td className="px-3 py-2">
                   {row.errors.length === 0 ? (

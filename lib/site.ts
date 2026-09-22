@@ -19,6 +19,7 @@ export const routes = {
   order: "/order/",
   orderDesigner: "/order/?mode=designer",
   orderUpload: "/order/?mode=upload",
+  orderCheckout: "/order/?mode=checkout",
 } as const;
 
 export type SiteRoute = (typeof routes)[keyof typeof routes];

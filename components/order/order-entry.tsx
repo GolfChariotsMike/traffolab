@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CsvUploadLoader } from "@/components/order/csv-upload-loader";
 import { OrderChooser } from "@/components/order/order-chooser";
+import { OrderSummaryLoader } from "@/components/order/order-summary-loader";
 import { LabelDesignerLoader } from "@/components/designer/designer-loader";
 import {
   Breadcrumb,
@@ -18,22 +19,29 @@ import { productName, routes } from "@/lib/site";
 const COPY = {
   chooser: {
     title: "Order Traffolyte labels",
-    lede: "Design a plate in the browser, or upload a CSV of many legends. Add lines to an order draft in this browser — checkout is the next step. Identification plates only; TraffLabels does not claim AS/NZS certification of the labels.",
+    lede: "Design a plate in the browser, or upload a CSV of many legends. Prices are in AUD. Add lines to an order draft in this browser, then review Australia-wide shipping. Identification plates only; TraffLabels does not claim AS/NZS certification of the labels.",
   },
   designer: {
     title: "Design a Traffolyte plate",
-    lede: "Set the size and colour pair, add a legend, and export a LightBurn-ready SVG. Add the plate to an order draft in this browser — checkout is the next step. Identification plates only; TraffLabels does not claim AS/NZS certification of the labels.",
+    lede: "Set the size and colour pair, add a legend, and export a LightBurn-ready SVG. The plate price updates with the size. Add it to an order draft in this browser, then review shipping. Identification plates only; TraffLabels does not claim AS/NZS certification of the labels.",
   },
   upload: {
     title: "Upload a label list",
-    lede: "Download the TraffLabels CSV template, or map columns from your own schedule. Width and height are separate millimetre columns — any positive size, not a preset. Valid rows become the same order-draft lines as the designer — design JSON plus LightBurn SVG. Stripe checkout is not live yet.",
+    lede: "Download the TraffLabels CSV template, or map columns from your own schedule. Width and height are separate millimetre columns — any positive size, not a preset. Valid rows are priced in AUD and become the same order-draft lines as the designer.",
+  },
+  checkout: {
+    title: "Order summary",
+    lede: "Check each plate, choose Australia-wide shipping, and confirm the AUD total. Card payment is not connected yet — this summary is the amount TraffLabels checkout will charge.",
   },
 } as const;
 
 export function OrderEntry() {
   const searchParams = useSearchParams();
   const rawMode = searchParams.get("mode");
-  const mode = rawMode === "designer" || rawMode === "upload" ? rawMode : "chooser";
+  const mode =
+    rawMode === "designer" || rawMode === "upload" || rawMode === "checkout"
+      ? rawMode
+      : "chooser";
   const copy = COPY[mode];
 
   return (
@@ -68,7 +76,11 @@ export function OrderEntry() {
                   <BreadcrumbSeparator />
                   <BreadcrumbItem>
                     <BreadcrumbPage className="text-primary-foreground">
-                      {mode === "designer" ? "Design online" : "Upload a list"}
+                      {mode === "designer"
+                        ? "Design online"
+                        : mode === "upload"
+                          ? "Upload a list"
+                          : "Summary"}
                     </BreadcrumbPage>
                   </BreadcrumbItem>
                 </>
@@ -99,6 +111,8 @@ export function OrderEntry() {
         <LabelDesignerLoader />
       ) : mode === "upload" ? (
         <CsvUploadLoader />
+      ) : mode === "checkout" ? (
+        <OrderSummaryLoader />
       ) : (
         <OrderChooser />
       )}
