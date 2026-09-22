@@ -25,6 +25,10 @@ import {
   quoteOrder,
   type ShippingMethodId,
 } from "@/lib/pricing";
+import {
+  readCheckoutEmail,
+  writeCheckoutEmail,
+} from "@/lib/order-draft";
 import { routes } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +38,15 @@ function readStoredShipping(): ShippingMethodId {
     return parseShippingMethod(localStorage.getItem(SHIPPING_STORAGE_KEY));
   } catch {
     return "standard";
+  }
+}
+
+function readStoredCheckoutEmail(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return readCheckoutEmail(localStorage);
+  } catch {
+    return "";
   }
 }
 
@@ -51,7 +64,7 @@ export function OrderSummary() {
 
   const [lines, setLines] = useState<OrderLine[]>(readStoredOrderLines);
   const [shipping, setShipping] = useState<ShippingMethodId>(readStoredShipping);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(readStoredCheckoutEmail);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
   const quote = quoteOrder(plateFields(lines), shipping);
@@ -80,12 +93,23 @@ export function OrderSummary() {
 
     setPaying(true);
     try {
+      localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(lines));
+      localStorage.setItem(SHIPPING_STORAGE_KEY, shipping);
+      writeCheckoutEmail(localStorage, trimmed);
+    } catch {
+      // Private mode can reject storage. Checkout can still start; the
+      // in-memory draft is what we send, and a same-origin return can
+      // only restore what the browser kept.
+    }
+
+    try {
       const response = await fetch("/api/checkout/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customerEmail: trimmed,
           shippingMethodId: shipping,
+          returnOrigin: window.location.origin,
           lines: lines.map((line) => ({
             widthMm: line.design.widthMm,
             heightMm: line.design.heightMm,
@@ -126,8 +150,9 @@ export function OrderSummary() {
             role="status"
             className="border border-white/15 bg-charcoal/60 px-4 py-3 text-sm text-paper/80"
           >
-            Checkout was cancelled. Your draft is still here — adjust shipping or
-            try Pay now again.
+            {lines.length > 0
+              ? "Checkout was cancelled. Your draft is still here — adjust shipping or try Pay now again."
+              : "Checkout was cancelled. This browser has no saved plates — design a plate or upload a list, then pay again."}
           </p>
         ) : null}
 
@@ -311,7 +336,15 @@ export function OrderSummary() {
                   autoComplete="email"
                   required
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    setEmail(next);
+                    try {
+                      writeCheckoutEmail(localStorage, next);
+                    } catch {
+                      // Ignore storage failures; Pay now writes again before redirect.
+                    }
+                  }}
                   disabled={paying}
                   placeholder="you@company.com.au"
                   className="h-10 bg-charcoal"
