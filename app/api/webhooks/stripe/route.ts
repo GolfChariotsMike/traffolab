@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
+import {
+  DraftMissingError,
+  OrderStoreUnavailableError,
+  persistPaidCheckoutSession,
+} from "@/lib/fulfill-order";
+import { shouldFulfillCheckout } from "@/lib/orders";
 import { getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
 /**
- * Stripe webhook stub for checkout.session.completed.
- * Verifies STRIPE_WEBHOOK_SECRET when present; logs the session id.
- * No order DB yet — fulfillment can hook in here later.
+ * Stripe webhook for paid TraffLabels checkouts.
+ * Verifies STRIPE_WEBHOOK_SECRET, then stores the order as NEW.
  */
 export async function POST(request: Request) {
   const stripe = getStripe();
@@ -44,19 +49,50 @@ export async function POST(request: Request) {
     );
   }
 
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-    console.info("[stripe-webhook] checkout.session.completed", {
-      id: session.id,
-      payment_status: session.payment_status,
-      customer_email: session.customer_details?.email ?? session.customer_email,
-      amount_total: session.amount_total,
-      currency: session.currency,
-      metadata: session.metadata,
-    });
-  } else {
-    console.info("[stripe-webhook] ignored event", event.type);
+  if (
+    event.type !== "checkout.session.completed" &&
+    event.type !== "checkout.session.async_payment_succeeded"
+  ) {
+    return NextResponse.json({ received: true });
   }
 
-  return NextResponse.json({ received: true });
+  const session = event.data.object;
+  if (!shouldFulfillCheckout(event.type, session.payment_status)) {
+    console.info("[stripe-webhook] waiting for payment", {
+      id: session.id,
+      type: event.type,
+      payment_status: session.payment_status,
+    });
+    return NextResponse.json({ received: true });
+  }
+
+  try {
+    const order = await persistPaidCheckoutSession(session);
+    console.info("[stripe-webhook] order stored", {
+      id: session.id,
+      orderNumber: order?.orderNumber ?? null,
+      status: order?.status ?? null,
+    });
+    return NextResponse.json({ received: true, orderNumber: order?.orderNumber ?? null });
+  } catch (error) {
+    if (error instanceof OrderStoreUnavailableError) {
+      console.error("[stripe-webhook] orders database is not configured");
+      return NextResponse.json(
+        { ok: false, error: "Orders database is not configured." },
+        { status: 503 }
+      );
+    }
+    if (error instanceof DraftMissingError) {
+      console.error("[stripe-webhook] checkout draft missing", error.message);
+      return NextResponse.json(
+        { ok: false, error: "Checkout draft missing." },
+        { status: 500 }
+      );
+    }
+    console.error("[stripe-webhook] could not store order", error);
+    return NextResponse.json(
+      { ok: false, error: "Could not store order." },
+      { status: 500 }
+    );
+  }
 }

@@ -23,13 +23,42 @@ Set these on Vercel (preview first; do not promote until pricing and test keys a
 | --- | --- | --- |
 | `STRIPE_SECRET_KEY` | For checkout | Server-only. Without it, `POST /api/checkout` returns 503 JSON (`Checkout unavailable…`) and the build still succeeds. |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Optional today | Not required for redirect Checkout Sessions; keep for future Elements / client SDK use. |
-| `STRIPE_WEBHOOK_SECRET` | For webhooks | Used by `POST /api/webhooks/stripe` to verify `checkout.session.completed`. |
+| `STRIPE_WEBHOOK_SECRET` | Paid orders | Signing secret for `POST /api/webhooks/stripe` (`checkout.session.completed` and `checkout.session.async_payment_succeeded`). Without it, a paid session is stored only when the shopper lands on the success page. |
 | `NEXT_PUBLIC_SITE_URL` | Optional | Only a fallback for Checkout return URLs. Pay now sends the browser origin, and cancel/success stay on that host so the localStorage draft survives. Unset, the fallback is `https://www.trafflabels.com.au` — not `VERCEL_URL`. |
 | `RESEND_API_KEY` | Contact form | Existing Resend send. |
 | `RESEND_FROM` | Contact form | Verified from-address. |
 | `CONTACT_TO` | Contact form | Comma-separated inbox; falls back to `info@stikstickers.com`. |
+| `DATABASE_URL` or `POSTGRES_URL` | Paid orders | Postgres connection string (Vercel Postgres / Neon / Supabase). Required in production before Pay now will open Stripe. The app creates `trafflabels_orders` and `trafflabels_checkout_drafts` on first use (`db/schema.sql`). Use the pooled URL and keep this server-only. |
+| `ORDERS_DASHBOARD_PASSWORD` | Production board | Shared password for Mike and Leanne at `/admin/orders/`. Long random value. Rotating it signs everyone out. |
 
-Webhook endpoint to register in the Stripe Dashboard: `/api/webhooks/stripe` (event: `checkout.session.completed`).
+Do not put live Stripe keys in git. Test mode uses `sk_test_…`, `pk_test_…`, and a test webhook secret. Preview and production on Vercel stay unpaid until `DATABASE_URL` and `STRIPE_SECRET_KEY` are both set. This change does not update DNS or live Stripe settings.
+
+### Local Stripe webhook
+
+The success page also stores a paid session, so a test payment still lands in the dashboard if the webhook is not forwarded. The webhook is the reliable path when the shopper closes the tab.
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe/
+```
+
+Put the CLI signing secret in `STRIPE_WEBHOOK_SECRET`. In the Stripe Dashboard (test mode), the endpoint is `https://<your-host>/api/webhooks/stripe/` and the events are `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+
+Local `npm run dev` stores orders in `.data/trafflabels-orders.json` when `DATABASE_URL` is unset. That file is gitignored and is not used on Vercel (`NODE_ENV=production` without a database URL refuses checkout).
+
+### Orders dashboard
+
+Leanne signs in at `/admin/orders/` with `ORDERS_DASHBOARD_PASSWORD`. The board lists paid orders (status starts at **NEW**) and can set **CUT**, **READY TO SHIP**, or **SHIPPED**, plus a note and a tracking URL. Download builds the LightBurn file from the saved plate geometry.
+
+### LightBurn SVG
+
+Download is one SVG when the order is a single plate, or a ZIP with one SVG per physical plate (qty is duplicated, each file is the ordered width × height).
+
+- User units are millimetres (`width="60mm"`, `viewBox="0 0 60 20"`).
+- If LightBurn asks for SVG DPI, use **96** (the same setting Silhouette used).
+- **Black fill** (`#000000`) is engrave (legend text).
+- **Red stroke** (`#FF0000`) is the outer cut line.
+- Laminate colour is a comment in the file and a column on the order, not a laser colour.
+- Text is Arial/Helvetica so the laser PC can resolve a font. Confirm the legend before cutting.
 
 ## MVP routes
 
@@ -45,4 +74,5 @@ Webhook endpoint to register in the Stripe Dashboard: `/api/webhooks/stripe` (ev
 - `/order/?mode=upload` — CSV schedule upload (`colour,width,height,text,qty` in mm)
 - `/order/?mode=checkout` — order summary + Pay now (Stripe Checkout)
 - `/order/success/` — post-payment thank-you (`session_id` query)
+- `/admin/orders/` — private production board (not linked in the public nav)
 - `/contact/` — job enquiry (optional file attach)
