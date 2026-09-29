@@ -47,7 +47,9 @@ Local `npm run dev` stores orders in `.data/trafflabels-orders.json` when `DATAB
 
 ### Orders dashboard
 
-Leanne signs in at `/admin/orders/` with `ORDERS_DASHBOARD_PASSWORD`. The board lists paid orders (status starts at **NEW**) and can set **CUT**, **READY TO SHIP**, or **SHIPPED**, plus a note and a tracking URL. Download builds the LightBurn file from the saved plate geometry.
+Leanne signs in at `/admin/orders/` with `ORDERS_DASHBOARD_PASSWORD`. The board lists orders (status starts at **NEW**) and can set **CUT**, **READY TO SHIP**, or **SHIPPED**, plus a note and a tracking URL. Each row is marked **Stripe** or **Manual**. Download builds the LightBurn file from the saved plate geometry.
+
+**Import CSV** creates a trade / offline order with no Stripe charge. The plate file uses the same columns as the public list upload: `colour,width,height,text,qty` (millimetres). `width_mm` and `height_mm` are accepted too. Customer name, phone, email, postage, and Standard or Express shipping are entered on the form. A bad row is listed with its line number and the order is not created until every row is valid. The new order is **NEW** and **Manual**, and uses the same SVG/ZIP download.
 
 ### LightBurn SVG
 

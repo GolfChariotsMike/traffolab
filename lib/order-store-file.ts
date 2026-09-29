@@ -11,6 +11,13 @@ type FileDb = {
 
 const EMPTY: FileDb = { drafts: {}, orders: [], nextNumber: 1001 };
 
+function normalizeOrder(order: SavedOrder): SavedOrder {
+  return {
+    ...order,
+    paymentSource: order.paymentSource === "manual" ? "manual" : "stripe",
+  };
+}
+
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -33,7 +40,9 @@ export function createFileOrderStore(filePath: string): OrderStore {
       const parsed = JSON.parse(raw) as Partial<FileDb>;
       return {
         drafts: parsed.drafts ?? {},
-        orders: Array.isArray(parsed.orders) ? parsed.orders : [],
+        orders: (Array.isArray(parsed.orders) ? parsed.orders : []).map((order) =>
+          normalizeOrder(order as SavedOrder)
+        ),
         nextNumber:
           typeof parsed.nextNumber === "number" && parsed.nextNumber >= 1001
             ? parsed.nextNumber

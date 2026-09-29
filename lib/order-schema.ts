@@ -38,8 +38,13 @@ CREATE TABLE IF NOT EXISTS trafflabels_orders (
   stripe_livemode boolean NOT NULL DEFAULT false,
   note text NOT NULL DEFAULT '',
   tracking_link text NOT NULL DEFAULT '',
-  plates jsonb NOT NULL
+  plates jsonb NOT NULL,
+  payment_source text NOT NULL DEFAULT 'stripe' CHECK (payment_source IN ('stripe', 'manual'))
 );
+
+-- Databases created before payment_source existed.
+ALTER TABLE trafflabels_orders
+  ADD COLUMN IF NOT EXISTS payment_source text NOT NULL DEFAULT 'stripe';
 
 CREATE INDEX IF NOT EXISTS trafflabels_orders_created_at_idx
   ON trafflabels_orders (created_at DESC);

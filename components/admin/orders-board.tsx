@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Download, X } from "lucide-react";
+import { ImportOrderDialog } from "@/components/admin/import-order-dialog";
 import { Button } from "@/components/ui/button";
 import { COLOUR_PAIRS, type ColourPairId } from "@/lib/label-design";
 import {
@@ -11,6 +12,7 @@ import {
   formatOrderDate,
   formatPostage,
   orderItemCount,
+  paymentSourceLabel,
   stripeDashboardPaymentUrl,
   type OrderStatus,
   type SavedOrder,
@@ -53,6 +55,7 @@ export function OrdersBoard({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const visible = useMemo(
     () => (filter === "ALL" ? orders : orders.filter((order) => order.status === filter)),
@@ -158,6 +161,14 @@ export function OrdersBoard({
             Orders{" "}
             <span className="text-white/55">({visible.length})</span>
           </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className="h-9 rounded-full bg-[#fee100] px-4 text-sm font-medium text-[#12151a] hover:bg-[#ffe866]"
+              onClick={() => setImportOpen(true)}
+            >
+              Import CSV
+            </button>
           <label className="flex items-center gap-2 text-sm text-white/70">
             <span className="font-mono text-[10px] tracking-[0.16em] uppercase">Status</span>
             <select
@@ -173,6 +184,7 @@ export function OrdersBoard({
               ))}
             </select>
           </label>
+          </div>
         </div>
 
         {storeError ? (
@@ -183,11 +195,12 @@ export function OrdersBoard({
 
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black/55 shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
               <thead className="text-[11px] tracking-wide text-white/45 uppercase">
                 <tr className="border-b border-white/10">
                   <th className="px-4 py-3 font-medium">Order #</th>
                   <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 font-medium">Payment</th>
                   <th className="px-3 py-3 font-medium">Customer</th>
                   <th className="px-3 py-3 font-medium">Items</th>
                   <th className="px-3 py-3 font-medium">Total</th>
@@ -199,9 +212,9 @@ export function OrdersBoard({
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-sm text-white/55">
+                    <td colSpan={9} className="px-4 py-10 text-sm text-white/55">
                       {orders.length === 0
-                        ? "No paid orders yet. A successful Stripe payment appears here as NEW."
+                        ? "No orders yet. A Stripe payment or an Import CSV order appears here as NEW."
                         : "No orders in this status."}
                     </td>
                   </tr>
@@ -223,6 +236,18 @@ export function OrdersBoard({
                             )}
                           >
                             {order.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-wide",
+                              order.paymentSource === "manual"
+                                ? "bg-white/10 text-[#fee100]"
+                                : "bg-white/10 text-white/70"
+                            )}
+                          >
+                            {paymentSourceLabel(order.paymentSource)}
                           </span>
                         </td>
                         <td className="px-3 py-3">
@@ -256,6 +281,18 @@ export function OrdersBoard({
           </div>
         </div>
       </div>
+
+      {importOpen ? (
+        <ImportOrderDialog
+          onClose={() => setImportOpen(false)}
+          onCreated={(order) => {
+            setOrders((current) => [order, ...current.filter((item) => item.orderNumber !== order.orderNumber)]);
+            setImportOpen(false);
+            setFilter("ALL");
+            openOrder(order);
+          }}
+        />
+      ) : null}
 
       {selected ? (
         <div
@@ -294,9 +331,13 @@ export function OrdersBoard({
                 <dd>{formatOrderDate(selected.createdAt)}</dd>
                 <dt className="text-white/45">Shipping method</dt>
                 <dd>{shippingLabel(selected.shippingMethodId)}</dd>
+                <dt className="text-white/45">Payment</dt>
+                <dd>{paymentSourceLabel(selected.paymentSource)}</dd>
               </dl>
               <div className="mt-3 flex flex-col gap-1 text-sm">
-                {paymentUrl ? (
+                {selected.paymentSource === "manual" ? (
+                  <span className="text-[#fee100]">Manual CSV import. No Stripe payment.</span>
+                ) : paymentUrl ? (
                   <a className="text-[#fee100] underline-offset-2 hover:underline" href={paymentUrl} target="_blank" rel="noreferrer">
                     Stripe payment
                   </a>

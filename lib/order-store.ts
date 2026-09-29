@@ -60,6 +60,7 @@ type OrderRow = {
   stripe_payment_intent_id: string | null;
   stripe_receipt_url: string | null;
   stripe_livemode: boolean;
+  payment_source?: string | null;
   note: string;
   tracking_link: string;
   plates: SavedOrder["plates"] | string;
@@ -103,6 +104,7 @@ function rowToOrder(row: OrderRow): SavedOrder {
     stripePaymentIntentId: row.stripe_payment_intent_id,
     stripeReceiptUrl: row.stripe_receipt_url,
     stripeLivemode: row.stripe_livemode,
+    paymentSource: row.payment_source === "manual" ? "manual" : "stripe",
     note: row.note,
     trackingLink: row.tracking_link,
     plates: platesOf(row.plates),
@@ -118,7 +120,7 @@ async function insertOrder(sql: Sql, order: NewPaidOrder): Promise<SavedOrder> {
       shipping_postal_code, shipping_country, shipping_method,
       subtotal_cents, shipping_cents, total_cents,
       stripe_session_id, stripe_payment_intent_id, stripe_receipt_url, stripe_livemode,
-      note, tracking_link, plates
+      note, tracking_link, plates, payment_source
     ) VALUES (
       ${order.id},
       ${order.createdAt},
@@ -144,7 +146,8 @@ async function insertOrder(sql: Sql, order: NewPaidOrder): Promise<SavedOrder> {
       ${order.stripeLivemode},
       ${order.note},
       ${order.trackingLink},
-      ${sql.json(order.plates)}
+      ${sql.json(order.plates)},
+      ${order.paymentSource === "manual" ? "manual" : "stripe"}
     )
     ON CONFLICT (stripe_session_id) DO UPDATE
       SET stripe_receipt_url = COALESCE(trafflabels_orders.stripe_receipt_url, EXCLUDED.stripe_receipt_url),

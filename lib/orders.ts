@@ -9,6 +9,9 @@ import type { ShippingMethodId } from "@/lib/pricing";
 export const ORDER_STATUSES = ["NEW", "CUT", "READY TO SHIP", "SHIPPED"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
+export const PAYMENT_SOURCES = ["stripe", "manual"] as const;
+export type PaymentSource = (typeof PAYMENT_SOURCES)[number];
+
 export type PlateAlign = "left" | "center" | "right";
 
 export type PlateObject = {
@@ -72,6 +75,8 @@ export type SavedOrder = {
   stripePaymentIntentId: string | null;
   stripeReceiptUrl: string | null;
   stripeLivemode: boolean;
+  /** stripe = Checkout payment. manual = CSV / trade order with no Stripe charge. */
+  paymentSource: PaymentSource;
   note: string;
   trackingLink: string;
   plates: StoredPlate[];
@@ -99,6 +104,10 @@ export type OrderPatch = {
 
 const NOTE_MAX = 4000;
 const TRACKING_MAX = 500;
+
+export function paymentSourceLabel(source: PaymentSource | undefined) {
+  return source === "manual" ? "Manual" : "Stripe";
+}
 
 export function isOrderStatus(value: unknown): value is OrderStatus {
   return (
@@ -305,6 +314,7 @@ export function buildPaidOrder(
     stripePaymentIntentId: payment.paymentIntentId,
     stripeReceiptUrl: payment.receiptUrl,
     stripeLivemode: payment.livemode,
+    paymentSource: "stripe",
     note: "",
     trackingLink: "",
     plates: draft.plates,
