@@ -1,31 +1,31 @@
 import { NextResponse } from "next/server";
-import {
-  ORDERS_COOKIE,
-  ordersCookieOptions,
-  passwordsMatch,
-  signOrdersSession,
-  dashboardConfigured,
-} from "@/lib/admin-auth";
+import { requestOrdersSignIn } from "@/lib/admin-login";
+import { sendMagicLinkEmail } from "@/lib/admin-mail";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function redirectTo(request: Request, query: Record<string, string>) {
+  const url = new URL("/admin/orders/", request.url);
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
+  return NextResponse.redirect(url, 303);
+}
 
 export async function POST(request: Request) {
   const form = await request.formData();
-  const password = String(form.get("password") ?? "");
-  const failed = (error: string) => {
-    const response = NextResponse.redirect(new URL("/admin/orders/?error=" + error, request.url), {
-      status: 303,
-    });
-    return response;
-  };
+  const email = String(form.get("email") ?? "");
+  const result = await requestOrdersSignIn({
+    email,
+    requestUrl: request.url,
+    deliver: sendMagicLinkEmail,
+  });
 
-  if (!dashboardConfigured()) return failed("config");
-  if (!passwordsMatch(password)) return failed("1");
+  if (result.kind === "unconfigured") return redirectTo(request, { error: "config" });
+  if (result.kind === "invalid-email") return redirectTo(request, { error: "email" });
 
-  const token = signOrdersSession();
-  if (!token) return failed("config");
-
-  const response = NextResponse.redirect(new URL("/admin/orders/", request.url), { status: 303 });
-  response.cookies.set(ORDERS_COOKIE, token, ordersCookieOptions());
-  return response;
+  const query: Record<string, string> = { sent: "1" };
+  if (result.previewUrl && process.env.NODE_ENV !== "production") {
+    query.preview = result.previewUrl;
+  }
+  return redirectTo(request, query);
 }

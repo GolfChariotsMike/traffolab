@@ -40,9 +40,11 @@ function faceColour(colourPair: string) {
 export function OrdersBoard({
   initialOrders,
   storeError,
+  signedInEmail,
 }: {
   initialOrders: SavedOrder[];
   storeError: string | null;
+  signedInEmail?: string;
 }) {
   const router = useRouter();
   const [orders, setOrders] = useState(initialOrders);
@@ -144,14 +146,19 @@ export function OrdersBoard({
         <div className="h-1 bg-[#fee100]" />
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
           <p className="font-heading text-lg font-semibold tracking-tight">TraffLabels</p>
-          <form action="/api/admin/logout/" method="post">
-            <button
-              type="submit"
-              className="rounded-full border border-white/25 px-3 py-1 text-sm text-white/90 hover:bg-white/10"
-            >
-              Sign out
-            </button>
-          </form>
+          <div className="flex items-center gap-3">
+            {signedInEmail ? (
+              <p className="hidden text-sm text-white/55 sm:block">{signedInEmail}</p>
+            ) : null}
+            <form action="/api/admin/logout/" method="post">
+              <button
+                type="submit"
+                className="rounded-full border border-white/25 px-3 py-1 text-sm text-white/90 hover:bg-white/10"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 
