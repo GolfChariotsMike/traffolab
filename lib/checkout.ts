@@ -4,13 +4,14 @@
  * line_items. Never trust client-supplied money amounts.
  */
 
+import { COLOUR_PAIRS, type ColourPairId } from "@/lib/label-design";
+import type { PlateObject, StoredPlate } from "@/lib/orders";
 import {
   SHIPPING_METHODS,
   clampOrderQty,
   formatAreaMm2,
   formatAud,
   isShippingMethodId,
-  priceForPlate,
   quoteOrder,
   type OrderQuote,
   type ShippingMethodId,
@@ -19,6 +20,8 @@ import {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_LINES = 200;
 const MAX_SUMMARY_LEN = 240;
+const MAX_OBJECTS = 40;
+const MAX_TEXT = 500;
 const MIN_MM = 0.1;
 const MAX_MM = 2000;
 
@@ -27,6 +30,9 @@ export type CheckoutLineInput = {
   heightMm: number;
   qty: number;
   designSummary?: string;
+  colourPair?: ColourPairId;
+  adhesive3m?: boolean;
+  objects?: PlateObject[];
 };
 
 export type CheckoutRequest = {
@@ -52,6 +58,7 @@ export type BuiltCheckout = {
   request: CheckoutRequest;
   quote: OrderQuote;
   lineItems: CheckoutLineItem[];
+  plates: StoredPlate[];
   metadata: Record<string, string>;
 };
 
@@ -65,6 +72,103 @@ export type CheckoutParseOk = {
   ok: true;
   value: BuiltCheckout;
 };
+
+function isColourPairId(value: unknown): value is ColourPairId {
+  return typeof value === "string" && value in COLOUR_PAIRS;
+}
+
+function isAlign(value: unknown): value is PlateObject["align"] {
+  return value === "left" || value === "center" || value === "right";
+}
+
+function parseLineDesign(
+  row: Record<string, unknown>,
+  lineNo: number
+):
+  | { ok: true; colourPair: ColourPairId; adhesive3m: boolean; objects: PlateObject[] }
+  | CheckoutParseError {
+  let colourPair: ColourPairId = "yellow-black";
+  if (row.colourPair != null && row.colourPair !== "") {
+    if (!isColourPairId(row.colourPair)) {
+      return {
+        ok: false,
+        status: 400,
+        error: `Plate line ${lineNo} has an unknown colour.`,
+      };
+    }
+    colourPair = row.colourPair;
+  }
+
+  let adhesive3m = false;
+  if (row.adhesive3m != null) {
+    if (typeof row.adhesive3m !== "boolean") {
+      return {
+        ok: false,
+        status: 400,
+        error: `Plate line ${lineNo} has an invalid adhesive flag.`,
+      };
+    }
+    adhesive3m = row.adhesive3m;
+  }
+
+  if (row.objects == null) {
+    return { ok: true, colourPair, adhesive3m, objects: [] };
+  }
+  if (!Array.isArray(row.objects) || row.objects.length > MAX_OBJECTS) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Plate line ${lineNo} has invalid legend text.`,
+    };
+  }
+
+  const objects: PlateObject[] = [];
+  for (const item of row.objects) {
+    if (!item || typeof item !== "object") {
+      return {
+        ok: false,
+        status: 400,
+        error: `Plate line ${lineNo} has invalid legend text.`,
+      };
+    }
+    const object = item as Record<string, unknown>;
+    const x = Number(object.x);
+    const y = Number(object.y);
+    const fontSize = Number(object.fontSize);
+    if (
+      typeof object.text !== "string" ||
+      object.text.length > MAX_TEXT ||
+      !isAlign(object.align) ||
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(fontSize) ||
+      fontSize < 0.5 ||
+      fontSize > 80 ||
+      Math.abs(x) > 3000 ||
+      Math.abs(y) > 3000
+    ) {
+      return {
+        ok: false,
+        status: 400,
+        error: `Plate line ${lineNo} has invalid legend text.`,
+      };
+    }
+    const id =
+      typeof object.id === "string" && object.id.trim()
+        ? object.id.trim().slice(0, 40)
+        : `text-${objects.length + 1}`;
+    objects.push({
+      id,
+      text: object.text,
+      x,
+      y,
+      fontSize,
+      align: object.align,
+    });
+  }
+
+  return { ok: true, colourPair, adhesive3m, objects };
+}
 
 export function parseCheckoutBody(body: unknown): CheckoutParseOk | CheckoutParseError {
   if (!body || typeof body !== "object") {
@@ -138,11 +242,16 @@ export function parseCheckoutBody(body: unknown): CheckoutParseOk | CheckoutPars
       typeof summaryRaw === "string"
         ? summaryRaw.trim().slice(0, MAX_SUMMARY_LEN)
         : undefined;
+    const design = parseLineDesign(row, i + 1);
+    if (!design.ok) return design;
     lines.push({
       widthMm,
       heightMm,
       qty,
       ...(designSummary ? { designSummary } : {}),
+      colourPair: design.colourPair,
+      adhesive3m: design.adhesive3m,
+      objects: design.objects,
     });
   }
 
@@ -211,10 +320,33 @@ export function buildCheckout(request: CheckoutRequest): BuiltCheckout {
     },
   });
 
+  const plates: StoredPlate[] = quote.lines.map((priced, index) => {
+    const input = request.lines[index];
+    const colourPair = input.colourPair ?? "yellow-black";
+    const objects = input.objects ?? [];
+    const text = objects
+      .map((object) => object.text.trim())
+      .filter(Boolean)
+      .join("\n");
+    return {
+      widthMm: priced.widthMm,
+      heightMm: priced.heightMm,
+      qty: priced.qty,
+      unitCents: priced.unitCents,
+      lineCents: priced.lineCents,
+      colourPair,
+      colourLabel: COLOUR_PAIRS[colourPair].label,
+      adhesive3m: input.adhesive3m === true,
+      text,
+      objects,
+    };
+  });
+
   return {
     request,
     quote,
     lineItems,
+    plates,
     metadata: {
       shippingMethodId: request.shippingMethodId,
       plateCount: String(request.lines.length),

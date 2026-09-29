@@ -4,7 +4,9 @@ import { ClearPaidDraft } from "@/components/order/clear-paid-draft";
 import { Button } from "@/components/ui/button";
 import { absoluteUrl, productName, routes } from "@/lib/site";
 import { shouldClearOrderDraft } from "@/lib/checkout-return";
-import { checkoutSessionPaymentStatus } from "@/lib/stripe";
+import { persistPaidCheckoutSession } from "@/lib/fulfill-order";
+import { shouldFulfillCheckout } from "@/lib/orders";
+import { retrieveCheckoutSession } from "@/lib/stripe";
 
 export const metadata: Metadata = {
   title: `Payment received | ${productName}`,
@@ -27,10 +29,18 @@ export default async function OrderSuccessPage({
 }) {
   const params = await searchParams;
   const sessionId = firstParam(params.session_id).trim();
-  const paymentStatus = sessionId
-    ? await checkoutSessionPaymentStatus(sessionId)
-    : null;
+  const session = sessionId ? await retrieveCheckoutSession(sessionId) : null;
+  const paymentStatus = session?.payment_status ?? null;
   const paid = shouldClearOrderDraft(paymentStatus);
+  let orderNumber: number | null = null;
+  if (session && shouldFulfillCheckout("checkout.session.completed", paymentStatus)) {
+    try {
+      const order = await persistPaidCheckoutSession(session);
+      orderNumber = order?.orderNumber ?? null;
+    } catch (error) {
+      console.error("[checkout] could not store paid order from the success page", error);
+    }
+  }
 
   return (
     <section className="border-b bg-ink text-primary-foreground">
@@ -45,7 +55,9 @@ export default async function OrderSuccessPage({
         <p className="max-w-xl text-sm leading-relaxed text-primary-foreground/75 md:text-base">
           {sessionId && !paid
             ? "Stripe has not confirmed a paid Checkout Session. Your order draft is still in this browser — return to the summary and try Pay now again."
-            : "Stripe has confirmed the Checkout Session for this TraffLabels order. We will follow up by email with production and shipping details."}
+            : orderNumber
+              ? `Stripe has confirmed TraffLabels order #${orderNumber}. We will engrave and ship it to the address you entered at checkout.`
+              : "Stripe has confirmed the Checkout Session for this TraffLabels order. We will follow up by email with production and shipping details."}
         </p>
         {sessionId ? (
           <p className="font-mono text-xs break-all text-primary-foreground/55">

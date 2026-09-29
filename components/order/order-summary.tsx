@@ -115,6 +115,9 @@ export function OrderSummary() {
             heightMm: line.design.heightMm,
             qty: line.qty,
             designSummary: designSummary(line.design),
+            colourPair: line.design.colourPair,
+            adhesive3m: line.design.adhesive3m,
+            objects: line.design.objects,
           })),
         }),
       });
@@ -352,8 +355,9 @@ export function OrderSummary() {
               </div>
 
               <p className="mt-4 text-sm leading-relaxed text-paper/65">
-                Pay with card via Stripe Checkout. The server recalculates plate
-                and shipping totals in AUD before opening the payment page.
+                Pay with card via Stripe Checkout. Stripe will ask for the
+                delivery address and phone. The server recalculates plate and
+                shipping totals in AUD before opening the payment page.
               </p>
 
               <Button

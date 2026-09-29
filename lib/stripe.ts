@@ -13,18 +13,27 @@ export function getStripe(): Stripe | null {
 
 const CHECKOUT_SESSION_ID = /^cs_(test|live)_[A-Za-z0-9]+$/;
 
+export function isCheckoutSessionId(sessionId: string) {
+  return CHECKOUT_SESSION_ID.test(sessionId) && sessionId.length <= 255;
+}
+
+/** Full Checkout Session, or null when it cannot be loaded. */
+export async function retrieveCheckoutSession(sessionId: string) {
+  if (!isCheckoutSessionId(sessionId)) return null;
+  const stripe = getStripe();
+  if (!stripe) return null;
+  try {
+    return await stripe.checkout.sessions.retrieve(sessionId);
+  } catch (error) {
+    console.error("[checkout] could not load session", error);
+    return null;
+  }
+}
+
 /** Stripe payment_status for a Checkout Session, or null when it cannot be confirmed. */
 export async function checkoutSessionPaymentStatus(
   sessionId: string
 ): Promise<string | null> {
-  if (!CHECKOUT_SESSION_ID.test(sessionId) || sessionId.length > 255) return null;
-  const stripe = getStripe();
-  if (!stripe) return null;
-  try {
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    return session.payment_status ?? null;
-  } catch (error) {
-    console.error("[checkout] could not confirm session payment", error);
-    return null;
-  }
+  const session = await retrieveCheckoutSession(sessionId);
+  return session?.payment_status ?? null;
 }

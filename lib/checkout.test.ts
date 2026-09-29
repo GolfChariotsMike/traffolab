@@ -123,4 +123,50 @@ import { priceForPlate, quoteOrder, shippingCents } from "./pricing";
   );
 }
 
+{
+  // Design payload must not change the charged total. Objects are kept for the laser file.
+  const parsed = parseCheckoutBody({
+    customerEmail: "buyer@example.com",
+    shippingMethodId: "standard",
+    lines: [
+      {
+        widthMm: 20,
+        heightMm: 10,
+        qty: 2,
+        colourPair: "red-white",
+        adhesive3m: true,
+        objects: [
+          {
+            id: "text-1",
+            text: "DB-1",
+            x: 10,
+            y: 6.5,
+            fontSize: 4,
+            align: "center",
+          },
+        ],
+        unitCents: 1,
+      },
+    ],
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) throw new Error("expected ok");
+  assert.equal(parsed.value.quote.totalCents, 150 * 2 + 1000);
+  assert.equal(parsed.value.plates[0].text, "DB-1");
+  assert.equal(parsed.value.plates[0].colourPair, "red-white");
+  assert.equal(parsed.value.plates[0].colourLabel, "Red / white");
+  assert.equal(parsed.value.plates[0].adhesive3m, true);
+  assert.equal(parsed.value.plates[0].unitCents, 150);
+  assert.equal(parsed.value.plates[0].objects[0].fontSize, 4);
+}
+
+{
+  const bad = parseCheckoutBody({
+    customerEmail: "buyer@example.com",
+    shippingMethodId: "standard",
+    lines: [{ widthMm: 20, heightMm: 10, qty: 1, colourPair: "neon" }],
+  });
+  assert.equal(bad.ok, false);
+}
+
 console.log("lib/checkout.test.ts: ok");
