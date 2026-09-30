@@ -342,16 +342,20 @@ function textFactors(text: string) {
   return { kW, kH, ascent: first.ascent };
 }
 
-/** Modest clear border around auto-sized engraving, in millimetres. */
+/**
+ * Clear border around auto-sized engraving, in millimetres.
+ * 7.5% of the width and 9% of the height on each side — about 85% / 82% of the
+ * plate — so the legend still fills the label, with a larger margin than a ~90% fit.
+ */
 export function autoTextInset(plate: PlateSize) {
   return {
-    x: clamp(roundMm(plate.widthMm * 0.045), 0.7, 2.5),
-    y: clamp(roundMm(plate.heightMm * 0.07), 0.55, 2.2),
+    x: clamp(roundMm(plate.widthMm * 0.075), 0.9, 24),
+    y: clamp(roundMm(plate.heightMm * 0.09), 0.7, 18),
   };
 }
 
 /**
- * Largest type that fills the plate on the limiting axis, with a small inset,
+ * Largest type that fills the plate on the limiting axis, with that inset,
  * then centred (or pinned to that inset when the legend is left or right aligned).
  */
 export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject {
