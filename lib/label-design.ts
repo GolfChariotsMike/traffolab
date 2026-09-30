@@ -202,25 +202,35 @@ export function nearestSizePreset(widthMm: number, heightMm: number) {
 }
 
 /**
- * Plate sizes are presets only. Older saved designs (and any out-of-range
- * values) snap to the nearest preset by Euclidean distance in millimetres.
+ * Nearest trade preset. Opt-in only — the designer and CSV/order paths keep
+ * the exact millimetres instead of snapping.
  */
 export function snapToSizePreset(widthMm: number, heightMm: number) {
   const preset = nearestSizePreset(widthMm, heightMm);
   return { widthMm: preset.widthMm, heightMm: preset.heightMm };
 }
 
+/** Bound the range, then snap to a preset. Preset-only callers use this. */
 export function clampPlateSize(widthMm: number, heightMm: number) {
   const size = clampFreeformPlateSize(widthMm, heightMm);
   return snapToSizePreset(size.widthMm, size.heightMm);
 }
 
-/** CSV / order-draft path: keep exact millimetres, only bound the range. */
+/** Designer, CSV, and order-draft path: keep exact millimetres, only bound the range. */
 export function clampFreeformPlateSize(widthMm: number, heightMm: number) {
   return {
     widthMm: clamp(roundMm(widthMm), 0.1, MAX_PLATE_WIDTH_MM),
     heightMm: clamp(roundMm(heightMm), 0.1, MAX_PLATE_HEIGHT_MM),
   };
+}
+
+/** Width or height typed in the designer. Uses the named plate bounds. */
+export function clampDesignerPlateAxis(
+  valueMm: number,
+  axis: "width" | "height"
+) {
+  const max = axis === "width" ? MAX_PLATE_WIDTH_MM : MAX_PLATE_HEIGHT_MM;
+  return clamp(roundMm(valueMm), MIN_PLATE_MM, max);
 }
 
 export function roundMm(value: number, step = 0.1) {
@@ -233,6 +243,18 @@ export function matchSizePreset(
   heightMm: number
 ): SizePresetId {
   return nearestSizePreset(widthMm, heightMm).id;
+}
+
+/** Preset id when the plate is exactly that size. Custom millimetres return null. */
+export function exactSizePreset(
+  widthMm: number,
+  heightMm: number
+): SizePresetId | null {
+  return (
+    SIZE_PRESETS.find(
+      (preset) => preset.widthMm === widthMm && preset.heightMm === heightMm
+    )?.id ?? null
+  );
 }
 
 export function nextObjectId(objects: TextObject[]) {
@@ -650,7 +672,7 @@ export function applyPlateSize(
   widthMm: number,
   heightMm: number
 ): LabelDesign {
-  const size = clampPlateSize(widthMm, heightMm);
+  const size = clampFreeformPlateSize(widthMm, heightMm);
   if (size.widthMm === design.widthMm && size.heightMm === design.heightMm) {
     return design;
   }
@@ -880,10 +902,11 @@ export function parseDesign(
   const objects = draft.objects
     .map(parseTextObject)
     .filter((object): object is TextObject => object !== null);
+  // Snap only when asked. Saved plates and CSV rows keep exact millimetres.
   const size =
-    options?.snapToPreset === false
-      ? clampFreeformPlateSize(draft.widthMm, draft.heightMm)
-      : clampPlateSize(draft.widthMm, draft.heightMm);
+    options?.snapToPreset === true
+      ? clampPlateSize(draft.widthMm, draft.heightMm)
+      : clampFreeformPlateSize(draft.widthMm, draft.heightMm);
   return {
     version: DESIGN_VERSION,
     ...size,
@@ -896,12 +919,19 @@ export function parseDesign(
 export const DESIGN_STORAGE_KEY = "trafflabels.design.v1";
 export const ORDER_STORAGE_KEY = "trafflabels.order.v1";
 
+/**
+ * Designer canvas load, including CSV “Open in designer”.
+ * Exact millimetres — do not snap to SIZE_PRESETS.
+ */
+export function parseStoredDesign(value: unknown): LabelDesign {
+  return parseDesign(value, { snapToPreset: false }) ?? DEFAULT_DESIGN;
+}
+
 export function readStoredDesign(): LabelDesign {
   if (typeof window === "undefined") return DEFAULT_DESIGN;
   try {
-    return (
-      parseDesign(JSON.parse(localStorage.getItem(DESIGN_STORAGE_KEY) ?? "null")) ??
-      DEFAULT_DESIGN
+    return parseStoredDesign(
+      JSON.parse(localStorage.getItem(DESIGN_STORAGE_KEY) ?? "null")
     );
   } catch {
     return DEFAULT_DESIGN;

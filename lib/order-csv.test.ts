@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseOrderLines } from "./label-design";
+import { clampPlateSize, parseOrderLines, parseStoredDesign } from "./label-design";
 import {
   TEMPLATE_CSV,
   TEMPLATE_FIELDS,
@@ -37,6 +37,15 @@ function mappingFor(headers: string[]) {
   const reloaded = parseOrderLines(JSON.parse(JSON.stringify(lines)));
   assert.equal(reloaded[0]?.design.widthMm, 45);
   assert.equal(reloaded[0]?.design.heightMm, 12);
+  // Same JSON the CSV “Open in designer” button writes for the plate designer.
+  const opened = parseStoredDesign(JSON.parse(JSON.stringify(lines[0]?.design)));
+  assert.equal(opened.widthMm, 45);
+  assert.equal(opened.heightMm, 12);
+  assert.equal(opened.objects[0]?.text, "MAIN SWITCH");
+  assert.notEqual(opened.widthMm, clampPlateSize(45, 12).widthMm);
+  const second = parseStoredDesign(JSON.parse(JSON.stringify(lines[1]?.design)));
+  assert.equal(second.widthMm, 100);
+  assert.equal(second.heightMm, 25);
 }
 
 {
