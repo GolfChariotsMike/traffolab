@@ -48,20 +48,20 @@ Local `npm run dev` stores orders in `.data/trafflabels-orders.json` when `DATAB
 
 ### Orders dashboard
 
-Mike and Leanne sign in at `/admin/orders/` with an email magic link. Only addresses in `ORDERS_ADMIN_EMAILS` can request or finish sign-in (the starting address is `info@stikstickers.com`). The form always says a link was sent when the address looks valid, so the page does not reveal who is on the list. The link expires in 20 minutes, works once, and in production opens `https://www.trafflabels.com.au`. Local `npm run dev` shows the link on the page instead of emailing. A shared password is not accepted. The board lists orders (status starts at **NEW**) and can set **CUT**, **READY TO SHIP**, or **SHIPPED**, plus a note and a tracking URL. Each row is marked **Stripe** or **Manual**. Download builds the LightBurn file from the saved plate geometry. Sign out clears the session cookie.
+Mike and Leanne sign in at `/admin/orders/` with an email magic link. Only addresses in `ORDERS_ADMIN_EMAILS` can request or finish sign-in (the starting address is `info@stikstickers.com`). The form always says a link was sent when the address looks valid, so the page does not reveal who is on the list. The link expires in 20 minutes, works once, and in production opens `https://www.trafflabels.com.au`. Local `npm run dev` shows the link on the page instead of emailing. A shared password is not accepted. The board lists orders (status starts at **NEW**) and can set **CUT**, **READY TO SHIP**, or **SHIPPED**, plus a note and a tracking URL. Each row is marked **Stripe** or **Manual**. Download builds a ZIP of nested 300 × 200 mm LightBurn sheets from the saved plate geometry. Sign out clears the session cookie.
 
-**Import CSV** creates a trade / offline order with no Stripe charge. The plate file uses the same columns as the public list upload: `colour,width,height,text,qty` (millimetres). `width_mm` and `height_mm` are accepted too. Customer name, phone, email, postage, and Standard or Express shipping are entered on the form. A bad row is listed with its line number and the order is not created until every row is valid. The new order is **NEW** and **Manual**, and uses the same SVG/ZIP download.
+**Import CSV** creates a trade / offline order with no Stripe charge. The plate file uses the same columns as the public list upload: `colour,width,height,text,qty` (millimetres). `width_mm` and `height_mm` are accepted too. Customer name, phone, email, postage, and Standard or Express shipping are entered on the form. A bad row is listed with its line number and the order is not created until every row is valid. The new order is **NEW** and **Manual**, and uses the same nested-sheet ZIP download.
 
-### LightBurn SVG
+### LightBurn download
 
-Download is one SVG when the order is a single plate, or a ZIP with one SVG per physical plate (qty is duplicated, each file is the ordered width × height).
+Download is a ZIP. Cut from the nested sheet SVGs in `sheets/`. Plates of the same laminate colour and adhesive are packed onto **300 × 200 mm** sheets. A plate is rotated 90° when that uses fewer sheets, or when that is the only way it fits; the legend rotates with the plate. Where two plates meet, the shared edge is one red cut. `nest-summary.txt` lists each sheet. `pieces/` has one SVG per physical plate for edits.
 
-- User units are millimetres (`width="60mm"`, `viewBox="0 0 60 20"`).
+- User units are millimetres. A material sheet is `width="300mm"` and `viewBox="0 0 300 200"`.
 - If LightBurn asks for SVG DPI, use **96** (the same setting Silhouette used).
-- **Black fill** (`#000000`) is engrave (legend text).
-- **Red stroke** (`#FF0000`) is the outer cut line.
+- **Black fill** (`#000000`) is engrave (Arial Regular, weight 400).
+- **Red stroke** (`#FF0000`) is the cut. Shared edges are not drawn twice.
 - Laminate colour is a comment in the file and a column on the order, not a laser colour.
-- Text is Arial/Helvetica so the laser PC can resolve a font. Confirm the legend before cutting.
+- Confirm the legend before cutting. Rotated plates read correctly relative to the plate, not necessarily upright on the sheet.
 
 ## MVP routes
 
