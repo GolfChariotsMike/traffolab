@@ -72,8 +72,21 @@ assert.match(files[2].svg, /viewBox="0 0 100 25"/);
 
 const single = buildProductionDownload(7, [{ ...second, qty: 1 }]);
 assert.ok(single);
-assert.equal(single?.contentType.startsWith("image/svg+xml"), true);
-assert.match(single?.filename ?? "", /\.svg$/);
+assert.equal(single?.contentType, "application/zip");
+assert.equal(single?.filename, "trafflabels-order-7.zip");
+const singleEntries = unzipStore(single!.body);
+assert.deepEqual(
+  singleEntries.map((entry) => entry.name),
+  [
+    "nest-summary.txt",
+    "sheets/trafflabels-7-sheet-1-of-1-yellow-black.svg",
+    "pieces/trafflabels-7-pv-isolator.svg",
+  ]
+);
+const singleSheet = new TextDecoder().decode(singleEntries[1].data);
+assert.match(singleSheet, /width="300mm"/);
+assert.match(singleSheet, /height="200mm"/);
+assert.match(singleSheet, /Sheet 1 of 1/);
 
 const zip = buildProductionDownload(1042, [plate, second]);
 assert.ok(zip);
@@ -82,12 +95,22 @@ assert.equal(zip?.filename, "trafflabels-order-1042.zip");
 const entries = unzipStore(zip!.body);
 assert.deepEqual(
   entries.map((entry) => entry.name),
-  files.map((file) => file.filename)
+  [
+    "nest-summary.txt",
+    "sheets/trafflabels-1042-sheet-1-of-1-yellow-black.svg",
+    ...files.map((file) => `pieces/${file.filename}`),
+  ]
 );
-const firstSvg = new TextDecoder().decode(entries[0].data);
-assert.match(firstSvg, /width="60mm"/);
-assert.match(firstSvg, /height="20mm"/);
-assert.match(firstSvg, /fill="#000000"/);
-assert.match(firstSvg, /stroke="#FF0000"/);
+const sheetSvg = new TextDecoder().decode(entries[1].data);
+assert.match(sheetSvg, /width="300mm"/);
+assert.match(sheetSvg, /height="200mm"/);
+assert.match(sheetSvg, /fill="#000000"/);
+assert.match(sheetSvg, /stroke="#FF0000"/);
+assert.equal(sheetSvg.includes("<rect"), false);
+const firstPiece = new TextDecoder().decode(entries[2].data);
+assert.match(firstPiece, /width="60mm"/);
+assert.match(firstPiece, /height="20mm"/);
+assert.match(firstPiece, /fill="#000000"/);
+assert.match(firstPiece, /stroke="#FF0000"/);
 
 console.log("lib/production-svg.test.ts: ok");

@@ -28,7 +28,14 @@ function textAnchor(align: PlateObject["align"]) {
   return "start";
 }
 
-function serializeText(object: PlateObject) {
+/** Physical copies. `copy <= max(1, qty)` for finite qty, so 2.9 still yields two plates. */
+export function plateCopyCount(qty: number) {
+  if (!Number.isFinite(qty)) return 1;
+  return Math.floor(Math.max(1, qty));
+}
+
+/** Plate-local engrave text. A parent transform can rotate it with the cut rectangle. */
+export function serializeEngraveText(object: PlateObject, idSuffix = "") {
   const lines = object.text.length > 0 ? object.text.split("\n") : [""];
   const tspans = lines
     .map((line, index) => {
@@ -36,13 +43,14 @@ function serializeText(object: PlateObject) {
       return `<tspan x="${object.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
     })
     .join("");
-  return `<text id="engrave-${escapeXml(object.id)}" x="${object.x}" y="${object.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
+  const id = `engrave-${object.id}${idSuffix}`;
+  return `<text id="${escapeXml(id)}" x="${object.x}" y="${object.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
 }
 
 export function serializeProductionSvg(
   plate: Pick<StoredPlate, "widthMm" | "heightMm" | "colourLabel" | "adhesive3m" | "objects">
 ) {
-  const texts = plate.objects.map((object) => serializeText(object)).join("\n    ");
+  const texts = plate.objects.map((object) => serializeEngraveText(object)).join("\n    ");
   const material = plate.colourLabel
     ? `${plate.colourLabel}${plate.adhesive3m ? " · 3M adhesive" : ""}`
     : "unspecified laminate";
@@ -84,7 +92,7 @@ export function productionFiles(orderNumber: number, plates: StoredPlate[]): Pro
   plates.forEach((plate, lineIndex) => {
     const svg = serializeProductionSvg(plate);
     const slug = plateFileSlug(plate.text);
-    const copies = Math.max(1, plate.qty);
+    const copies = plateCopyCount(plate.qty);
     for (let copy = 1; copy <= copies; copy += 1) {
       const multi = plates.length > 1 || plate.qty > 1;
       const suffix = multi ? `-L${lineIndex + 1}-${copy}of${plate.qty}` : "";
@@ -97,7 +105,7 @@ export function productionFiles(orderNumber: number, plates: StoredPlate[]): Pro
   return files;
 }
 
+/** Admin download is a ZIP: nested sheets, a summary, and per-plate SVGs. */
 export function productionDownloadKind(plates: Array<{ qty: number }>): "svg" | "zip" {
-  const copies = plates.reduce((sum, plate) => sum + Math.max(1, plate.qty), 0);
-  return copies <= 1 ? "svg" : "zip";
+  return plates.length > 0 ? "zip" : "svg";
 }
