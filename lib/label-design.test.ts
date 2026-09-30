@@ -1,15 +1,26 @@
 import assert from "node:assert/strict";
 import {
   DEFAULT_DESIGN,
+  MAX_PLATE_HEIGHT_MM,
+  MAX_PLATE_WIDTH_MM,
   MIN_FONT_MM,
+  MIN_PLATE_MM,
   SIZE_PRESETS,
   applyPlateSize,
   autoTextInset,
+  clampDesignerPlateAxis,
+  clampFreeformPlateSize,
   clampObjectToPlate,
+  clampPlateSize,
   createLegendDesign,
+  createOrderLine,
   createTextObject,
+  exactSizePreset,
   fitTextToPlate,
   maxFontForPlate,
+  parseDesign,
+  parseOrderLines,
+  parseStoredDesign,
   resizeTextObject,
   serializeLightBurnSvg,
   shrinkTextToPlate,
@@ -360,6 +371,95 @@ function assertFills(
   assert.match(svg, new RegExp(`x="${moved.x}"`));
   assert.match(svg, new RegExp(`y="${moved.y}"`));
   assert.equal(svg.includes('stroke="#FEE100"'), false);
+}
+
+{
+  // 45 × 12 is the CSV template size. Nearest preset is 60 × 20 — do not snap.
+  const snapped = clampPlateSize(45, 12);
+  assert.equal(snapped.widthMm, 60);
+  assert.equal(snapped.heightMm, 20);
+  const free = clampFreeformPlateSize(45, 12);
+  assert.deepEqual(free, { widthMm: 45, heightMm: 12 });
+  assert.equal(exactSizePreset(45, 12), null);
+  assert.equal(exactSizePreset(60, 20), "60x20");
+}
+
+{
+  const source = createLegendDesign("yellow-black", 45, 12, "AC1");
+  const opened = parseDesign(JSON.parse(JSON.stringify(source)));
+  assert.ok(opened);
+  assert.equal(opened.widthMm, 45);
+  assert.equal(opened.heightMm, 12);
+  assert.equal(opened.objects[0]?.text, "AC1");
+  const forced = parseDesign(source, { snapToPreset: true });
+  assert.equal(forced?.widthMm, 60);
+  assert.equal(forced?.heightMm, 20);
+}
+
+{
+  // CSV row → order line → designer storage → plate designer load.
+  const line = createOrderLine(
+    createLegendDesign("yellow-black", 45, 12, "AC1"),
+    10
+  );
+  const stored = JSON.parse(JSON.stringify(line.design));
+  const opened = parseStoredDesign(stored);
+  assert.equal(opened.widthMm, 45);
+  assert.equal(opened.heightMm, 12);
+  assert.equal(opened.objects[0]?.text, "AC1");
+  const svg = serializeLightBurnSvg(opened);
+  assert.match(svg, /width="45mm" height="12mm" viewBox="0 0 45 12"/);
+  assert.notEqual(opened.widthMm, clampPlateSize(45, 12).widthMm);
+
+  const second = parseStoredDesign(
+    createLegendDesign("white-black", 100, 25, "AC2")
+  );
+  assert.equal(second.widthMm, 100);
+  assert.equal(second.heightMm, 25);
+  assert.deepEqual(clampPlateSize(100, 25), { widthMm: 80, heightMm: 30 });
+
+  const reloaded = parseOrderLines([
+    {
+      id: line.id,
+      qty: line.qty,
+      svg: line.svg,
+      design: stored,
+    },
+  ]);
+  assert.equal(reloaded[0]?.design.widthMm, 45);
+  assert.equal(reloaded[0]?.design.heightMm, 12);
+}
+
+{
+  const custom = applyPlateSize(DEFAULT_DESIGN, 45, 12);
+  assert.equal(custom.widthMm, 45);
+  assert.equal(custom.heightMm, 12);
+  assertFills(custom.objects[0], custom, "custom 45x12");
+  const svg = serializeLightBurnSvg(custom);
+  assert.match(svg, /width="45mm" height="12mm" viewBox="0 0 45 12"/);
+  assert.match(svg, /font-size="[^"]+"/);
+
+  const preset = applyPlateSize(custom, 80, 30);
+  assert.equal(preset.widthMm, 80);
+  assert.equal(preset.heightMm, 30);
+  assert.equal(exactSizePreset(preset.widthMm, preset.heightMm), "80x30");
+
+  const capped = applyPlateSize(DEFAULT_DESIGN, 900, 900);
+  assert.equal(capped.widthMm, MAX_PLATE_WIDTH_MM);
+  assert.equal(capped.heightMm, MAX_PLATE_HEIGHT_MM);
+
+  const tiny = applyPlateSize(DEFAULT_DESIGN, 0.04, 0);
+  assert.equal(tiny.widthMm, 0.1);
+  assert.equal(tiny.heightMm, 0.1);
+}
+
+{
+  assert.equal(clampDesignerPlateAxis(45, "width"), 45);
+  assert.equal(clampDesignerPlateAxis(12.55, "height"), 12.6);
+  assert.equal(clampDesignerPlateAxis(4, "width"), MIN_PLATE_MM);
+  assert.equal(clampDesignerPlateAxis(4, "height"), MIN_PLATE_MM);
+  assert.equal(clampDesignerPlateAxis(900, "width"), MAX_PLATE_WIDTH_MM);
+  assert.equal(clampDesignerPlateAxis(900, "height"), MAX_PLATE_HEIGHT_MM);
 }
 
 console.log("label-design tests passed");

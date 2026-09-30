@@ -1,12 +1,18 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   COLOUR_PAIRS,
+  MAX_PLATE_HEIGHT_MM,
+  MAX_PLATE_WIDTH_MM,
+  MIN_PLATE_MM,
   SIZE_PRESETS,
-  matchSizePreset,
+  clampDesignerPlateAxis,
+  exactSizePreset,
   type ColourPairId,
   type LabelDesign,
 } from "@/lib/label-design";
@@ -28,7 +34,7 @@ export function PlateSetup({
   onColour: (colourPair: ColourPairId) => void;
   onAdhesive: (adhesive3m: boolean) => void;
 }) {
-  const preset = matchSizePreset(design.widthMm, design.heightMm);
+  const preset = exactSizePreset(design.widthMm, design.heightMm);
   const quote = priceForPlate(design.widthMm, design.heightMm, 1);
 
   return (
@@ -46,6 +52,7 @@ export function PlateSetup({
                   ? "border-laser bg-laser/15 text-paper"
                   : "border-white/10 bg-charcoal/60 text-paper/80 hover:border-white/25"
               )}
+              aria-pressed={preset === item.id}
             >
               {item.label}
               <span className="mt-0.5 block text-[10px] text-paper/45">
@@ -53,6 +60,22 @@ export function PlateSetup({
               </span>
             </button>
           ))}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <MillimetreField
+            id="plate-width-mm"
+            label="Width (mm)"
+            valueMm={design.widthMm}
+            axis="width"
+            onCommit={(widthMm) => onSize(widthMm, design.heightMm)}
+          />
+          <MillimetreField
+            id="plate-height-mm"
+            label="Height (mm)"
+            valueMm={design.heightMm}
+            axis="height"
+            onCommit={(heightMm) => onSize(design.widthMm, heightMm)}
+          />
         </div>
         <p className="text-[11px] leading-relaxed text-paper/70">
           This plate{" "}
@@ -62,8 +85,10 @@ export function PlateSetup({
             ? ` · ${formatAud(Math.round((PLATE_RATE_TABLE[0].minimumAud ?? 0) * 100))} minimum`
             : ""}
         </p>
-        <p className="text-[11px] leading-relaxed text-paper/45">
-          Preset sizes only. Price follows plate area, in AUD. Corners stay square.
+        <p id="plate-size-hint" className="text-[11px] leading-relaxed text-paper/45">
+          Custom size or a preset. Width {MIN_PLATE_MM}–{MAX_PLATE_WIDTH_MM} mm,
+          height {MIN_PLATE_MM}–{MAX_PLATE_HEIGHT_MM} mm. Price follows plate area,
+          in AUD. Corners stay square.
         </p>
       </Fieldset>
 
@@ -130,6 +155,80 @@ export function PlateSetup({
           />
         </div>
       </Fieldset>
+    </div>
+  );
+}
+
+function MillimetreField({
+  id,
+  label,
+  valueMm,
+  axis,
+  onCommit,
+}: {
+  id: string;
+  label: string;
+  valueMm: number;
+  axis: "width" | "height";
+  onCommit: (mm: number) => void;
+}) {
+  const [text, setText] = useState(() => String(valueMm));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setText(String(valueMm));
+  }, [valueMm]);
+
+  function commit(raw: string, clampOutOfRange: boolean) {
+    const trimmed = raw.trim();
+    if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+      if (clampOutOfRange) setText(String(valueMm));
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      if (clampOutOfRange) setText(String(valueMm));
+      return;
+    }
+    const max = axis === "width" ? MAX_PLATE_WIDTH_MM : MAX_PLATE_HEIGHT_MM;
+    if (parsed < MIN_PLATE_MM || parsed > max) {
+      if (!clampOutOfRange) return;
+    }
+    onCommit(clampDesignerPlateAxis(parsed, axis));
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={id} className="text-[11px] text-paper/65">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="number"
+        inputMode="decimal"
+        min={MIN_PLATE_MM}
+        max={axis === "width" ? MAX_PLATE_WIDTH_MM : MAX_PLATE_HEIGHT_MM}
+        step={0.1}
+        value={text}
+        aria-describedby="plate-size-hint"
+        onFocus={() => {
+          focused.current = true;
+        }}
+        onChange={(event) => {
+          const next = event.target.value;
+          setText(next);
+          commit(next, false);
+        }}
+        onBlur={() => {
+          focused.current = false;
+          if (text.trim() === String(valueMm)) {
+            setText(String(valueMm));
+            return;
+          }
+          commit(text, true);
+        }}
+        className="h-8 bg-charcoal font-mono"
+      />
     </div>
   );
 }
