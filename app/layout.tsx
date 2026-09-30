@@ -7,6 +7,8 @@ import "./globals.css";
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
+  // Headings use 600 and 700. Plate legends are system Arial, not this face.
+  weight: "variable",
 });
 
 const plexSans = IBM_Plex_Sans({

@@ -6,7 +6,7 @@
  * setting Silhouette used. Black fill is engrave. Red stroke is the cut line.
  */
 
-import { LINE_HEIGHT } from "@/lib/label-design";
+import { ENGRAVE_FONT_FAMILY, ENGRAVE_FONT_WEIGHT, LINE_HEIGHT } from "@/lib/label-design";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 
 export const ENGRAVE_FILL = "#000000";
@@ -36,7 +36,7 @@ function serializeText(object: PlateObject) {
       return `<tspan x="${object.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
     })
     .join("");
-  return `<text id="engrave-${escapeXml(object.id)}" x="${object.x}" y="${object.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="${object.fontSize}" font-weight="600" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
+  return `<text id="engrave-${escapeXml(object.id)}" x="${object.x}" y="${object.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
 }
 
 export function serializeProductionSvg(

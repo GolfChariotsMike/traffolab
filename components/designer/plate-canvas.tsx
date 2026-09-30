@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   colourPairOf,
+  ENGRAVE_FONT_FAMILY,
+  ENGRAVE_FONT_WEIGHT,
   LINE_HEIGHT,
   resizeHandlePoints,
   resizeTextObject,
@@ -305,11 +307,13 @@ function TextNode({
         x={object.x}
         y={object.y}
         fill={fill}
-        fontFamily="Space Grotesk, Arial, sans-serif"
         fontSize={object.fontSize}
-        fontWeight={600}
         textAnchor={textAnchor(object.align)}
-        style={{ userSelect: "none" }}
+        style={{
+          fontFamily: ENGRAVE_FONT_FAMILY,
+          fontWeight: ENGRAVE_FONT_WEIGHT,
+          userSelect: "none",
+        }}
       >
         {lines.map((line, index) => (
           <tspan

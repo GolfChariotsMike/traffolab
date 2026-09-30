@@ -10,96 +10,99 @@ export const MIN_FONT_MM = 3;
 export const MAX_FONT_MM = 80;
 
 export const LINE_HEIGHT = 1.15;
-/** Fallback advance for characters outside the measured Space Grotesk set. */
-export const CHAR_WIDTH_EM = 0.62;
-export const ENGRAVE_FONT_FAMILY = "Space Grotesk, Arial, sans-serif";
+/** Fallback advance for characters outside the measured Arial set. */
+export const CHAR_WIDTH_EM = 0.68;
+/** System Arial, so the browser preview and LightBurn on Windows use the same face. */
+export const ENGRAVE_FONT_FAMILY = "Arial, Helvetica, sans-serif";
+/** Regular Arial. Semi-bold reads as bold engraving. */
+export const ENGRAVE_FONT_WEIGHT = 400;
 
 /**
- * Space Grotesk at weight 600. Caps are 0.70em, not the 1.15 line box, so
- * auto-fit uses this glyph box or the type stays small inside the plate.
+ * Arial Regular. Caps are about 0.72em, not the 1.15 line box, so auto-fit
+ * uses this glyph box or the type stays small inside the plate.
  */
-const GLYPH_ASCENT_EM = 0.72;
+const GLYPH_ASCENT_EM = 0.73;
 const GLYPH_ASCENT_TALL_EM = 0.78;
 const GLYPH_DESCENT_EM = 0.22;
 const GLYPH_DESCENT_FLAT_EM = 0.02;
 const DESCENDER_RE = /[gjpqyQ,;()[\]{}]/;
 const TALL_RE = /[()[\]{}|]/;
 
-/** Advance widths in em, measured from Space Grotesk weight 600. */
+/** Advance widths in em, measured from Arial Regular (weight 400). */
 const GLYPH_EM: Record<string, number> = {
-  " ": 0.255,
-  "-": 0.438,
-  _: 0.62,
-  ".": 0.287,
-  ",": 0.284,
-  ":": 0.287,
-  ";": 0.287,
-  "/": 0.384,
-  "&": 0.594,
-  "+": 0.62,
-  "#": 0.634,
-  "0": 0.646,
-  "1": 0.444,
-  "2": 0.596,
-  "3": 0.607,
-  "4": 0.633,
-  "5": 0.6,
-  "6": 0.617,
+  " ": 0.278,
+  "-": 0.333,
+  _: 0.556,
+  ".": 0.278,
+  ",": 0.278,
+  ":": 0.278,
+  ";": 0.278,
+  "/": 0.278,
+  "&": 0.667,
+  "+": 0.584,
+  "#": 0.556,
+  "0": 0.556,
+  "1": 0.556,
+  "2": 0.556,
+  "3": 0.556,
+  "4": 0.556,
+  "5": 0.556,
+  "6": 0.556,
   "7": 0.556,
-  "8": 0.606,
-  "9": 0.617,
-  A: 0.633,
-  B: 0.663,
-  C: 0.643,
-  D: 0.665,
-  E: 0.556,
-  F: 0.535,
-  G: 0.661,
-  H: 0.656,
-  I: 0.259,
-  J: 0.606,
-  K: 0.622,
-  L: 0.543,
-  M: 0.878,
-  N: 0.668,
-  O: 0.674,
-  P: 0.603,
-  Q: 0.674,
-  R: 0.632,
-  S: 0.608,
-  T: 0.588,
-  U: 0.671,
-  V: 0.618,
-  W: 0.892,
-  X: 0.642,
-  Y: 0.621,
-  Z: 0.576,
-  a: 0.577,
-  b: 0.639,
-  c: 0.589,
-  d: 0.639,
-  e: 0.581,
-  f: 0.437,
-  g: 0.639,
-  h: 0.615,
-  i: 0.261,
-  j: 0.263,
-  k: 0.558,
-  l: 0.261,
-  m: 0.855,
-  n: 0.615,
-  o: 0.613,
-  p: 0.639,
-  q: 0.639,
-  r: 0.391,
-  s: 0.525,
-  t: 0.457,
-  u: 0.615,
-  v: 0.546,
-  w: 0.788,
-  x: 0.592,
-  y: 0.615,
-  z: 0.519,
+  "8": 0.556,
+  "9": 0.556,
+  A: 0.667,
+  B: 0.667,
+  C: 0.722,
+  D: 0.722,
+  E: 0.667,
+  F: 0.611,
+  G: 0.778,
+  H: 0.722,
+  I: 0.278,
+  J: 0.5,
+  K: 0.667,
+  L: 0.556,
+  M: 0.833,
+  N: 0.722,
+  O: 0.778,
+  P: 0.667,
+  Q: 0.778,
+  R: 0.722,
+  S: 0.667,
+  T: 0.611,
+  U: 0.722,
+  V: 0.667,
+  W: 0.944,
+  X: 0.667,
+  Y: 0.667,
+  Z: 0.611,
+  a: 0.556,
+  b: 0.556,
+  c: 0.5,
+  d: 0.556,
+  e: 0.556,
+  f: 0.278,
+  g: 0.556,
+  h: 0.556,
+  i: 0.222,
+  j: 0.222,
+  k: 0.5,
+  l: 0.222,
+  m: 0.833,
+  n: 0.556,
+  o: 0.556,
+  p: 0.556,
+  q: 0.556,
+  r: 0.333,
+  s: 0.5,
+  t: 0.278,
+  u: 0.556,
+  v: 0.5,
+  w: 0.722,
+  x: 0.5,
+  y: 0.5,
+  z: 0.5,
 };
 
 export const SIZE_PRESETS = [
@@ -755,11 +758,7 @@ function escapeXml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
-function serializeTextElement(
-  object: TextObject,
-  fill: string,
-  fontWeight = 600
-) {
+function serializeTextElement(object: TextObject, fill: string) {
   const lines = textLines(object.text);
   const tspans = lines
     .map((line, index) => {
@@ -768,7 +767,7 @@ function serializeTextElement(
     })
     .join("");
 
-  return `<text id="engrave-${escapeXml(object.id)}" x="${object.x}" y="${object.y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${fontWeight}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
+  return `<text id="engrave-${escapeXml(object.id)}" x="${object.x}" y="${object.y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
 }
 
 export function serializeDesignJson(design: LabelDesign) {
@@ -798,7 +797,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${design.widthMm}mm" height="${design.heightMm}mm" viewBox="0 0 ${design.widthMm} ${design.heightMm}">
   <!-- TraffLabels v1 · LightBurn handoff · 1 SVG unit = 1 mm · square corners only -->
   <!-- cut (#000000 stroke): plate outline -->
-  <!-- engrave (#FF0000 fill): legend text, Space Grotesk / industrial sans -->
+  <!-- engrave (#FF0000 fill): legend text, Arial weight 400 -->
   <!-- guide (#0000FF stroke): same outline for nesting reference; hide if unused -->
   <!-- face ${colours.faceLabel} ${colours.face} / core ${colours.coreLabel} ${colours.core} · 3M adhesive: ${design.adhesive3m ? "yes" : "no"} -->
   <metadata>
