@@ -47,6 +47,7 @@ assert.match(svg, /fill="none" stroke="#FF0000"/);
 assert.match(svg, /stroke="none"/);
 assert.match(svg, /font-weight="400"/);
 assert.doesNotMatch(svg, /font-weight="600"/);
+assert.match(svg, /font-family="Arial, Helvetica, sans-serif"/);
 assert.match(svg, /use 96/);
 assert.match(svg, /1 user unit = 1 mm/);
 assert.doesNotMatch(svg, /fill="#F5D000"/);

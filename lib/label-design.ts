@@ -10,98 +10,99 @@ export const MIN_FONT_MM = 3;
 export const MAX_FONT_MM = 80;
 
 export const LINE_HEIGHT = 1.15;
-/** Fallback advance for characters outside the measured Space Grotesk set. */
-export const CHAR_WIDTH_EM = 0.62;
-export const ENGRAVE_FONT_FAMILY = "Space Grotesk, Arial, sans-serif";
-/** Regular Space Grotesk. Semi-bold (600) reads as bold engraving. */
+/** Fallback advance for characters outside the measured Arial set. */
+export const CHAR_WIDTH_EM = 0.68;
+/** System Arial, so the browser preview and LightBurn on Windows use the same face. */
+export const ENGRAVE_FONT_FAMILY = "Arial, Helvetica, sans-serif";
+/** Regular Arial. Semi-bold reads as bold engraving. */
 export const ENGRAVE_FONT_WEIGHT = 400;
 
 /**
- * Space Grotesk at weight 400. Caps are 0.70em, not the 1.15 line box, so
- * auto-fit uses this glyph box or the type stays small inside the plate.
+ * Arial Regular. Caps are about 0.72em, not the 1.15 line box, so auto-fit
+ * uses this glyph box or the type stays small inside the plate.
  */
-const GLYPH_ASCENT_EM = 0.72;
+const GLYPH_ASCENT_EM = 0.73;
 const GLYPH_ASCENT_TALL_EM = 0.78;
 const GLYPH_DESCENT_EM = 0.22;
 const GLYPH_DESCENT_FLAT_EM = 0.02;
 const DESCENDER_RE = /[gjpqyQ,;()[\]{}]/;
 const TALL_RE = /[()[\]{}|]/;
 
-/** Advance widths in em, measured from Space Grotesk weight 400. */
+/** Advance widths in em, measured from Arial Regular (weight 400). */
 const GLYPH_EM: Record<string, number> = {
-  " ": 0.257,
-  "-": 0.455,
-  _: 0.62,
-  ".": 0.253,
-  ",": 0.251,
-  ":": 0.253,
-  ";": 0.253,
-  "/": 0.37,
-  "&": 0.604,
-  "+": 0.62,
-  "#": 0.628,
-  "0": 0.641,
-  "1": 0.418,
-  "2": 0.603,
-  "3": 0.604,
-  "4": 0.625,
-  "5": 0.599,
-  "6": 0.612,
-  "7": 0.564,
-  "8": 0.623,
-  "9": 0.612,
-  A: 0.63,
-  B: 0.661,
-  C: 0.642,
-  D: 0.663,
-  E: 0.563,
-  F: 0.54,
-  G: 0.66,
-  H: 0.656,
-  I: 0.244,
-  J: 0.594,
-  K: 0.61,
-  L: 0.546,
-  M: 0.865,
-  N: 0.664,
-  O: 0.669,
-  P: 0.601,
-  Q: 0.669,
-  R: 0.631,
-  S: 0.613,
-  T: 0.588,
-  U: 0.666,
-  V: 0.619,
-  W: 0.875,
-  X: 0.638,
-  Y: 0.61,
-  Z: 0.577,
-  a: 0.575,
-  b: 0.644,
-  c: 0.598,
-  d: 0.644,
-  e: 0.592,
-  f: 0.442,
-  g: 0.642,
-  h: 0.613,
-  i: 0.245,
-  j: 0.247,
-  k: 0.538,
-  l: 0.245,
-  m: 0.86,
-  n: 0.613,
-  o: 0.618,
-  p: 0.644,
-  q: 0.644,
-  r: 0.377,
-  s: 0.527,
-  t: 0.46,
-  u: 0.612,
-  v: 0.539,
-  w: 0.801,
-  x: 0.593,
-  y: 0.612,
-  z: 0.521,
+  " ": 0.278,
+  "-": 0.333,
+  _: 0.556,
+  ".": 0.278,
+  ",": 0.278,
+  ":": 0.278,
+  ";": 0.278,
+  "/": 0.278,
+  "&": 0.667,
+  "+": 0.584,
+  "#": 0.556,
+  "0": 0.556,
+  "1": 0.556,
+  "2": 0.556,
+  "3": 0.556,
+  "4": 0.556,
+  "5": 0.556,
+  "6": 0.556,
+  "7": 0.556,
+  "8": 0.556,
+  "9": 0.556,
+  A: 0.667,
+  B: 0.667,
+  C: 0.722,
+  D: 0.722,
+  E: 0.667,
+  F: 0.611,
+  G: 0.778,
+  H: 0.722,
+  I: 0.278,
+  J: 0.5,
+  K: 0.667,
+  L: 0.556,
+  M: 0.833,
+  N: 0.722,
+  O: 0.778,
+  P: 0.667,
+  Q: 0.778,
+  R: 0.722,
+  S: 0.667,
+  T: 0.611,
+  U: 0.722,
+  V: 0.667,
+  W: 0.944,
+  X: 0.667,
+  Y: 0.667,
+  Z: 0.611,
+  a: 0.556,
+  b: 0.556,
+  c: 0.5,
+  d: 0.556,
+  e: 0.556,
+  f: 0.278,
+  g: 0.556,
+  h: 0.556,
+  i: 0.222,
+  j: 0.222,
+  k: 0.5,
+  l: 0.222,
+  m: 0.833,
+  n: 0.556,
+  o: 0.556,
+  p: 0.556,
+  q: 0.556,
+  r: 0.333,
+  s: 0.5,
+  t: 0.278,
+  u: 0.556,
+  v: 0.5,
+  w: 0.722,
+  x: 0.5,
+  y: 0.5,
+  z: 0.5,
 };
 
 export const SIZE_PRESETS = [
@@ -796,7 +797,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${design.widthMm}mm" height="${design.heightMm}mm" viewBox="0 0 ${design.widthMm} ${design.heightMm}">
   <!-- TraffLabels v1 · LightBurn handoff · 1 SVG unit = 1 mm · square corners only -->
   <!-- cut (#000000 stroke): plate outline -->
-  <!-- engrave (#FF0000 fill): legend text, Space Grotesk weight 400 -->
+  <!-- engrave (#FF0000 fill): legend text, Arial weight 400 -->
   <!-- guide (#0000FF stroke): same outline for nesting reference; hide if unused -->
   <!-- face ${colours.faceLabel} ${colours.face} / core ${colours.coreLabel} ${colours.core} · 3M adhesive: ${design.adhesive3m ? "yes" : "no"} -->
   <metadata>

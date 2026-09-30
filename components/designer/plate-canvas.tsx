@@ -310,7 +310,7 @@ function TextNode({
         fontSize={object.fontSize}
         textAnchor={textAnchor(object.align)}
         style={{
-          fontFamily: `var(--font-space-grotesk), ${ENGRAVE_FONT_FAMILY}`,
+          fontFamily: ENGRAVE_FONT_FAMILY,
           fontWeight: ENGRAVE_FONT_WEIGHT,
           userSelect: "none",
         }}

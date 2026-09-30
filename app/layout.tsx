@@ -7,8 +7,7 @@ import "./globals.css";
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
   subsets: ["latin"],
-  // Full 300–700 axis, so plate legends at 400 and headings at 600/700
-  // are real cuts of the same file.
+  // Headings use 600 and 700. Plate legends are system Arial, not this face.
   weight: "variable",
 });
 

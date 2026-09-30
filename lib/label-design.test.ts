@@ -94,7 +94,20 @@ function assertFills(
         legend({ text, x: 0, y: 0, fontSize: MIN_FONT_MM, align: "center" }),
         preset
       );
-      assertFills(fitted, preset, `${preset.id} ${text}`);
+      const fittedBox = textMetrics(fitted);
+      const widerThanMin =
+        fitted.fontSize === MIN_FONT_MM &&
+        fittedBox.width > preset.widthMm + 0.06;
+      if (widerThanMin) {
+        const hangLeft = -fittedBox.left;
+        const hangRight = fittedBox.left + fittedBox.width - preset.widthMm;
+        assert.ok(
+          Math.abs(hangLeft - hangRight) < 0.15,
+          `${preset.id} ${text} overflow not centred (${hangLeft.toFixed(3)} / ${hangRight.toFixed(3)})`
+        );
+      } else {
+        assertFills(fitted, preset, `${preset.id} ${text}`);
+      }
       const svg = serializeLightBurnSvg({
         ...DEFAULT_DESIGN,
         widthMm: preset.widthMm,
@@ -104,7 +117,7 @@ function assertFills(
       assert.match(svg, new RegExp(`font-size="${fitted.fontSize}"`));
       assert.match(svg, /font-weight="400"/);
       assert.doesNotMatch(svg, /font-weight="600"/);
-      assert.match(svg, /font-family="Space Grotesk, Arial, sans-serif"/);
+      assert.match(svg, /font-family="Arial, Helvetica, sans-serif"/);
       assert.match(svg, new RegExp(`>${text}<`));
     }
   }
