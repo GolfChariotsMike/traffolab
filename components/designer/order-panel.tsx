@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { colourPairOf, designSummary, type OrderLine } from "@/lib/label-design";
 import { formatAud, priceForPlate, subtotalCents } from "@/lib/pricing";
 import { routes } from "@/lib/site";
+import { cn } from "@/lib/utils";
 
 export function OrderPanel({
   lines,
@@ -15,6 +16,7 @@ export function OrderPanel({
   onContinue,
   continueDisabled = false,
   onOpenInDesigner,
+  listClassName,
 }: {
   lines: OrderLine[];
   onQty: (id: string, qty: number) => void;
@@ -22,6 +24,7 @@ export function OrderPanel({
   onContinue: () => void;
   continueDisabled?: boolean;
   onOpenInDesigner?: (line: OrderLine) => void;
+  listClassName?: string;
 }) {
   const platesCents = subtotalCents(
     lines.map((line) => ({
@@ -39,7 +42,7 @@ export function OrderPanel({
           legends are right.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className={cn("flex flex-col gap-3", listClassName)}>
           {lines.map((line, index) => {
             const colours = colourPairOf(line.design);
             const quote = priceForPlate(

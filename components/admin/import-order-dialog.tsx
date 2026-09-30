@@ -110,20 +110,17 @@ export function ImportOrderDialog({
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-8"
       role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="import-order-title"
+        aria-labelledby="add-order-title"
         className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0e0e10] p-5 text-paper shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 id="import-order-title" className="font-heading text-lg font-semibold">
-              Import CSV
+            <h2 id="add-order-title" className="font-heading text-lg font-semibold">
+              Add Order
             </h2>
             <p className="mt-1 text-sm text-white/60">
               Creates a TraffLabels order with status NEW. No Stripe payment. Plate columns match the public list: colour, width, height, text, qty (mm).
