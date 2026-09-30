@@ -290,9 +290,12 @@ export function textLines(text: string) {
   return text.length > 0 ? text.split("\n") : [""];
 }
 
-export function textMetrics(object: TextObject) {
-  const lines = textLines(object.text);
-  const { kW, kH, ascent } = textFactors(object.text);
+type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm">;
+
+export function textMetrics(object: TextObject, plate?: PlateSize) {
+  const text = plate ? wrapLegendToFit(object.text, plate) : object.text;
+  const lines = textLines(text);
+  const { kW, kH, ascent } = textFactors(text);
   const width = kW * object.fontSize;
   const height = kH * object.fontSize;
   const left =
@@ -318,7 +321,6 @@ export const RESIZE_HANDLES = [
 
 export type ResizeHandle = (typeof RESIZE_HANDLES)[number];
 
-type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm">;
 type Point = { x: number; y: number };
 
 type TextBox = {
@@ -379,12 +381,104 @@ export function autoTextInset(plate: PlateSize) {
   };
 }
 
+function legendInnerWidth(plate: PlateSize) {
+  const inset = autoTextInset(plate);
+  return Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
+}
+
+function splitScore(left: string, right: string) {
+  const leftW = lineEmWidth(left);
+  const rightW = lineEmWidth(right);
+  return {
+    leftW,
+    rightW,
+    maxW: Math.max(leftW, rightW),
+    balance: Math.abs(leftW - rightW),
+  };
+}
+
+function pairFitsInset(left: string, right: string, innerW: number) {
+  return splitScore(left, right).maxW * MIN_FONT_MM <= innerW + 1e-4;
+}
+
+/** Smaller max line, then the more even pair. */
+function preferSplit(current: [string, string], candidate: [string, string]) {
+  const next = splitScore(candidate[0], candidate[1]);
+  const best = splitScore(current[0], current[1]);
+  if (next.maxW < best.maxW - 1e-6) return candidate;
+  if (best.maxW < next.maxW - 1e-6) return current;
+  if (next.balance < best.balance - 1e-6) return candidate;
+  return current;
+}
+
+function chooseSplit(pairs: Array<[string, string]>) {
+  return pairs.reduce((best, pair) => preferSplit(best, pair));
+}
+
+/** Breaks on a space or hyphen. The break character is not kept on either line. */
+function delimiterSplits(text: string): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char !== " " && char !== "-") continue;
+    const left = text.slice(0, index).trim();
+    const right = text.slice(index + 1).trim();
+    if (!left || !right) continue;
+    pairs.push([left, right]);
+  }
+  return pairs;
+}
+
+/** Cut inside a token when a hyphen or space cannot keep both lines in the inset. */
+function midTokenSplits(text: string): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  for (let index = 1; index < text.length; index += 1) {
+    const before = text[index - 1];
+    const char = text[index];
+    if (before === " " || before === "-" || char === " " || char === "-") continue;
+    pairs.push([text.slice(0, index), text.slice(index)]);
+  }
+  return pairs;
+}
+
+/**
+ * Two lines when one line cannot sit inside the plate inset at {@link MIN_FONT_MM}.
+ * A newline already in the legend is a manual break and stays as typed.
+ * Example: `ADMIN-AC7-THEATRE` on a 20×10 becomes `ADMIN-AC7` / `THEATRE`.
+ */
+export function wrapLegendToFit(text: string, plate: PlateSize): string {
+  if (text.includes("\n") || text.trim().length === 0) return text;
+  const innerW = legendInnerWidth(plate);
+  if (lineEmWidth(text) * MIN_FONT_MM <= innerW + 1e-4) return text;
+
+  const delimiters = delimiterSplits(text);
+  const fittingDelimiters = delimiters.filter((pair) =>
+    pairFitsInset(pair[0], pair[1], innerW)
+  );
+  let pool = fittingDelimiters;
+  if (pool.length === 0) {
+    const fittingMids = midTokenSplits(text).filter((pair) =>
+      pairFitsInset(pair[0], pair[1], innerW)
+    );
+    pool =
+      fittingMids.length > 0
+        ? fittingMids
+        : delimiters.length > 0
+          ? delimiters
+          : midTokenSplits(text);
+  }
+  if (pool.length === 0) return text;
+  const [left, right] = chooseSplit(pool);
+  return `${left}\n${right}`;
+}
+
 /**
  * Largest type that fills the plate on the limiting axis, with that inset,
  * then centred (or pinned to that inset when the legend is left or right aligned).
  */
 export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject {
-  const { kW, kH, ascent } = textFactors(object.text);
+  const text = wrapLegendToFit(object.text, plate);
+  const { kW, kH, ascent } = textFactors(text);
   const inset = autoTextInset(plate);
   const innerW = Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
   const innerH = Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
@@ -392,7 +486,7 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
   const fontSize = clamp(
     floorMm(Number.isFinite(fit) ? fit : MIN_FONT_MM),
     MIN_FONT_MM,
-    maxFontForPlate(object.text, plate)
+    maxFontForPlate(text, plate)
   );
   const height = kH * fontSize;
   const x =
@@ -406,6 +500,37 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
     { ...object, fontSize, x: roundMm(x), y: roundMm(y) },
     plate
   );
+}
+
+/**
+ * Production and nest engrave. A legend that already fits, including a manual
+ * line break, keeps its saved anchor. A single line that spills past the inset
+ * is wrapped and refitted the same way as the designer.
+ */
+export function engraveLayout<
+  T extends Pick<TextObject, "id" | "text" | "x" | "y" | "fontSize" | "align">,
+>(object: T, plate: PlateSize): T {
+  const text = wrapLegendToFit(object.text, plate);
+  if (text === object.text) return object;
+  const fitted = fitTextToPlate(
+    {
+      id: object.id,
+      type: "text",
+      text: object.text,
+      x: object.x,
+      y: object.y,
+      fontSize: object.fontSize,
+      align: object.align,
+    },
+    plate
+  );
+  return {
+    ...object,
+    text,
+    x: fitted.x,
+    y: fitted.y,
+    fontSize: fitted.fontSize,
+  };
 }
 
 // Fitted once fitTextToPlate exists, so the opening legend matches every other plate.
@@ -424,8 +549,8 @@ DEFAULT_DESIGN.objects = [
   ),
 ];
 
-function textBox(object: TextObject): TextBox {
-  const metrics = textMetrics(object);
+function textBox(object: TextObject, plate?: PlateSize): TextBox {
+  const metrics = textMetrics(object, plate);
   return {
     left: metrics.left,
     top: metrics.top,
@@ -440,7 +565,7 @@ function textBox(object: TextObject): TextBox {
 
 /** Largest 0.1 mm font that still fits the legend box on the plate. */
 export function maxFontForPlate(text: string, plate: PlateSize) {
-  const { kW, kH } = textFactors(text);
+  const { kW, kH } = textFactors(wrapLegendToFit(text, plate));
   const fit = Math.min(plate.widthMm / kW, plate.heightMm / kH);
   if (!Number.isFinite(fit) || fit <= MIN_FONT_MM) return MIN_FONT_MM;
   return clamp(floorMm(Math.min(MAX_FONT_MM, fit)), MIN_FONT_MM, MAX_FONT_MM);
@@ -466,7 +591,7 @@ function shiftToFit(origin: number, size: number, limit: number) {
 }
 
 function containTextOnPlate(object: TextObject, plate: PlateSize): TextObject {
-  const metrics = textMetrics(object);
+  const metrics = textMetrics(object, plate);
   const x = object.x + shiftToFit(metrics.left, metrics.width, plate.widthMm);
   const y = object.y + shiftToFit(metrics.top, metrics.height, plate.heightMm);
   if (x === object.x && y === object.y) return object;
@@ -591,11 +716,12 @@ function placeWithPins(
   object: TextObject,
   pins: EdgePins,
   kW: number,
-  kH: number
+  kH: number,
+  plate: PlateSize
 ): TextObject {
   const fontSize = object.fontSize;
   const width = kW * fontSize;
-  const { ascent } = textFactors(object.text);
+  const { ascent } = textFactors(wrapLegendToFit(object.text, plate));
   let x = object.x;
   let y = object.y;
 
@@ -624,8 +750,8 @@ function placeWithPins(
   return { ...object, x, y };
 }
 
-export function resizeHandlePoints(object: TextObject) {
-  const box = textBox(object);
+export function resizeHandlePoints(object: TextObject, plate?: PlateSize) {
+  const box = textBox(object, plate);
   return [
     { id: "nw" as const, x: box.left, y: box.top },
     { id: "n" as const, x: box.centerX, y: box.top },
@@ -649,15 +775,21 @@ export function resizeTextObject(
   pointer: Point,
   origin: Point
 ): TextObject {
-  const box = textBox(start);
-  const { kW, kH } = textFactors(start.text);
+  const box = textBox(start, plate);
+  const { kW, kH } = textFactors(wrapLegendToFit(start.text, plate));
   const scale = scaleFromPointer(handle, box, pointer, origin);
   const fontSize = clamp(
     roundMm(start.fontSize * Math.max(0, scale)),
     MIN_FONT_MM,
     maxFontForPins(pinsFor(handle, box), plate, kW, kH)
   );
-  const placed = placeWithPins({ ...start, fontSize }, pinsFor(handle, box), kW, kH);
+  const placed = placeWithPins(
+    { ...start, fontSize },
+    pinsFor(handle, box),
+    kW,
+    kH,
+    plate
+  );
   return clampObjectToPlate(placed, plate);
 }
 
@@ -666,7 +798,8 @@ export function shrinkTextToPlate(
   plate: Pick<LabelDesign, "widthMm" | "heightMm">
 ): TextObject {
   const fitted = fitTextToPlate(object, plate);
-  if (fitted.fontSize + 0.05 < object.fontSize) return fitted;
+  const reflowed = wrapLegendToFit(object.text, plate) !== object.text;
+  if (reflowed || fitted.fontSize + 0.05 < object.fontSize) return fitted;
   return clampObjectToPlate(object, plate);
 }
 
@@ -780,16 +913,17 @@ function escapeXml(value: string) {
     .replaceAll('"', "&quot;");
 }
 
-function serializeTextElement(object: TextObject, fill: string) {
-  const lines = textLines(object.text);
+function serializeTextElement(object: TextObject, fill: string, plate: PlateSize) {
+  const laid = engraveLayout(object, plate);
+  const lines = textLines(laid.text);
   const tspans = lines
     .map((line, index) => {
-      const dy = index === 0 ? 0 : roundMm(object.fontSize * LINE_HEIGHT);
-      return `<tspan x="${object.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
+      const dy = index === 0 ? 0 : roundMm(laid.fontSize * LINE_HEIGHT);
+      return `<tspan x="${laid.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
     })
     .join("");
 
-  return `<text id="engrave-${escapeXml(object.id)}" x="${object.x}" y="${object.y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
+  return `<text id="engrave-${escapeXml(laid.id)}" x="${laid.x}" y="${laid.y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${tspans}</text>`;
 }
 
 export function serializeDesignJson(design: LabelDesign) {
@@ -812,7 +946,7 @@ export function serializeDesignJson(design: LabelDesign) {
 export function serializeLightBurnSvg(design: LabelDesign) {
   const colours = colourPairOf(design);
   const texts = design.objects
-    .map((object) => serializeTextElement(object, "#FF0000"))
+    .map((object) => serializeTextElement(object, "#FF0000", design))
     .join("\n    ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>

@@ -15,6 +15,7 @@ import {
   createLegendDesign,
   createOrderLine,
   createTextObject,
+  engraveLayout,
   exactSizePreset,
   fitTextToPlate,
   maxFontForPlate,
@@ -25,6 +26,7 @@ import {
   serializeLightBurnSvg,
   shrinkTextToPlate,
   textMetrics,
+  wrapLegendToFit,
   type ResizeHandle,
   type TextObject,
 } from "./label-design";
@@ -34,7 +36,7 @@ function assertInside(
   plate: { widthMm: number; heightMm: number },
   label: string
 ) {
-  const metrics = textMetrics(object);
+  const metrics = textMetrics(object, plate);
   const slop = 0.06;
   assert.ok(metrics.left >= -slop, `${label} left ${metrics.left}`);
   assert.ok(metrics.top >= -slop, `${label} top ${metrics.top}`);
@@ -60,7 +62,7 @@ function assertFills(
   label: string
 ) {
   assertInside(object, plate, label);
-  const metrics = textMetrics(object);
+  const metrics = textMetrics(object, plate);
   const inset = autoTextInset(plate);
   const slackX = plate.widthMm - metrics.width;
   const slackY = plate.heightMm - metrics.height;
@@ -105,7 +107,7 @@ function assertFills(
         legend({ text, x: 0, y: 0, fontSize: MIN_FONT_MM, align: "center" }),
         preset
       );
-      const fittedBox = textMetrics(fitted);
+      const fittedBox = textMetrics(fitted, preset);
       const widerThanMin =
         fitted.fontSize === MIN_FONT_MM &&
         fittedBox.width > preset.widthMm + 0.06;
@@ -129,7 +131,18 @@ function assertFills(
       assert.match(svg, /font-weight="400"/);
       assert.doesNotMatch(svg, /font-weight="600"/);
       assert.match(svg, /font-family="Arial, Helvetica, sans-serif"/);
-      assert.match(svg, new RegExp(`>${text}<`));
+      const laidOut = wrapLegendToFit(fitted.text, preset);
+      for (const line of laidOut.split("\n")) {
+        assert.ok(svg.includes(`>${line}<`), `${preset.id} ${text} missing ${line}`);
+      }
+      if (laidOut.includes("\n")) {
+        assert.equal(laidOut.split("\n").length, 2);
+        assert.equal(fitted.text, text);
+        assert.ok(
+          fittedBox.width <= preset.widthMm + 0.06,
+          `${preset.id} ${text} wrapped width ${fittedBox.width}`
+        );
+      }
     }
   }
 }
@@ -208,13 +221,30 @@ function assertFills(
     }),
     plate
   );
-  const wideBox = textMetrics(wide);
-  assert.ok(wideBox.width > plate.widthMm);
-  assert.ok(wideBox.left <= 0.06, `wide left ${wideBox.left}`);
-  assert.ok(wideBox.left + wideBox.width >= plate.widthMm - 0.06);
-  const slid = clampObjectToPlate({ ...wide, x: wide.x - 2 }, plate);
-  assert.ok(slid.x < wide.x);
-  const slidBox = textMetrics(slid);
+  assert.equal(wide.text, "DISTRIBUTION BOARD");
+  const wideBox = textMetrics(wide, plate);
+  assert.equal(wrapLegendToFit(wide.text, plate).split("\n").length, 2);
+  assert.ok(wideBox.width <= plate.widthMm + 0.06, `wrapped width ${wideBox.width}`);
+  assert.ok(wideBox.left >= -0.06, `wrapped left ${wideBox.left}`);
+  assert.ok(wideBox.left + wideBox.width <= plate.widthMm + 0.06);
+
+  const overflow = clampObjectToPlate(
+    legend({
+      text: "W".repeat(30),
+      x: 4,
+      y: 7,
+      fontSize: MIN_FONT_MM,
+      align: "left",
+    }),
+    plate
+  );
+  const overflowBox = textMetrics(overflow, plate);
+  assert.ok(overflowBox.width > plate.widthMm);
+  assert.ok(overflowBox.left <= 0.06, `wide left ${overflowBox.left}`);
+  assert.ok(overflowBox.left + overflowBox.width >= plate.widthMm - 0.06);
+  const slid = clampObjectToPlate({ ...overflow, x: overflow.x - 2 }, plate);
+  assert.ok(slid.x < overflow.x);
+  const slidBox = textMetrics(slid, plate);
   assert.ok(slidBox.left <= 0.06);
   assert.ok(slidBox.left + slidBox.width >= plate.widthMm - 0.06);
 }
@@ -460,6 +490,101 @@ function assertFills(
   assert.equal(clampDesignerPlateAxis(4, "height"), MIN_PLATE_MM);
   assert.equal(clampDesignerPlateAxis(900, "width"), MAX_PLATE_WIDTH_MM);
   assert.equal(clampDesignerPlateAxis(900, "height"), MAX_PLATE_HEIGHT_MM);
+}
+
+{
+  const plate = { widthMm: 20, heightMm: 10 };
+  assert.equal(wrapLegendToFit("AC3-ER", plate), "AC3-ER");
+  assert.equal(wrapLegendToFit("MAIN", plate), "MAIN");
+  assert.equal(wrapLegendToFit("PUMP\n1", plate), "PUMP\n1");
+  assert.equal(wrapLegendToFit("ADMIN-AC7-THEATRE", plate), "ADMIN-AC7\nTHEATRE");
+  assert.equal(wrapLegendToFit("ADMIN-AC8-PARMELIA", plate), "ADMIN-AC8\nPARMELIA");
+  assert.equal(wrapLegendToFit("MAIN SWITCH", plate), "MAIN\nSWITCH");
+
+  const theatre = fitTextToPlate(
+    legend({
+      text: "ADMIN-AC7-THEATRE",
+      x: 0,
+      y: 0,
+      fontSize: MIN_FONT_MM,
+      align: "center",
+    }),
+    plate
+  );
+  assert.equal(theatre.text, "ADMIN-AC7-THEATRE");
+  assert.equal(wrapLegendToFit(theatre.text, plate), "ADMIN-AC7\nTHEATRE");
+  assert.equal(theatre.align, "center");
+  assert.ok(theatre.fontSize >= MIN_FONT_MM);
+  assertInside(theatre, plate, "ADMIN-AC7-THEATRE");
+  const theatreBox = textMetrics(theatre, plate);
+  assert.ok(theatreBox.width <= plate.widthMm - autoTextInset(plate).x * 2 + 0.06);
+  const topGap = theatreBox.top;
+  const bottomGap = plate.heightMm - (theatreBox.top + theatreBox.height);
+  assert.ok(
+    Math.abs(topGap - bottomGap) < 0.15,
+    `vertical centre ${topGap.toFixed(2)} / ${bottomGap.toFixed(2)}`
+  );
+  const theatreSvg = serializeLightBurnSvg({
+    ...DEFAULT_DESIGN,
+    ...plate,
+    objects: [theatre],
+  });
+  assert.match(
+    theatreSvg,
+    /<tspan x="[^"]+" dy="0">ADMIN-AC7<\/tspan><tspan x="[^"]+" dy="[^"]+">THEATRE<\/tspan>/
+  );
+  assert.match(theatreSvg, /font-weight="400"/);
+  assert.match(theatreSvg, /font-family="Arial, Helvetica, sans-serif"/);
+  const theatreEngrave = theatreSvg.split('id="engrave"')[1] ?? "";
+  assert.doesNotMatch(theatreEngrave, /ADMIN-AC7-THEATRE/);
+
+  const parmelia = fitTextToPlate(
+    legend({
+      text: "ADMIN-AC8-PARMELIA",
+      x: 10,
+      y: 5,
+      fontSize: MIN_FONT_MM,
+      align: "center",
+    }),
+    plate
+  );
+  assert.equal(parmelia.text, "ADMIN-AC8-PARMELIA");
+  assert.equal(wrapLegendToFit(parmelia.text, plate), "ADMIN-AC8\nPARMELIA");
+  assertInside(parmelia, plate, "ADMIN-AC8-PARMELIA");
+
+  const token = wrapLegendToFit("WWWWWWWWWW", plate);
+  const [tokenLeft, tokenRight] = token.split("\n");
+  assert.equal(token.split("\n").length, 2);
+  assert.equal(`${tokenLeft}${tokenRight}`, "WWWWWWWWWW");
+  const tokenFit = fitTextToPlate(
+    legend({ text: "WWWWWWWWWW", x: 10, y: 5, fontSize: MIN_FONT_MM, align: "center" }),
+    plate
+  );
+  assertInside(tokenFit, plate, "mid-token");
+  assert.equal(tokenFit.text, "WWWWWWWWWW");
+  assert.ok(textMetrics(tokenFit, plate).width <= plate.widthMm + 0.06);
+
+  const stored = engraveLayout(
+    legend({
+      text: "ADMIN-AC7-THEATRE",
+      x: 10,
+      y: 5,
+      fontSize: MIN_FONT_MM,
+      align: "center",
+    }),
+    plate
+  );
+  assert.equal(stored.text, "ADMIN-AC7\nTHEATRE");
+  assert.equal(stored.fontSize, theatre.fontSize);
+  assert.equal(stored.x, theatre.x);
+  assert.equal(stored.y, theatre.y);
+  const already = engraveLayout(
+    { ...theatre, text: stored.text },
+    plate
+  );
+  assert.equal(already.x, theatre.x);
+  assert.equal(already.y, theatre.y);
+  assert.equal(already.text, stored.text);
 }
 
 console.log("label-design tests passed");

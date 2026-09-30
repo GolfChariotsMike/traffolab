@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="300mm" height="200mm" viewBox="0 0 300 200" data-sheet="1" data-sheet-count="1">
+  <title>Sheet 1 of 1 — White / black</title>
+  <!-- TraffLabels order 1001. Sheet 1 of 1. 1 user unit = 1 mm. -->
+  <!-- Material sheet 300 × 200 mm. Laminate (not a laser colour): White / black -->
+  <!-- LightBurn: if import asks for SVG DPI, use 96. -->
+  <!-- Black fill #000000 = engrave. Red stroke #FF0000 = cut. -->
+  <!-- Shared edges are one open path. Plates sit flush, with no kerf gap. -->
+  <!-- When a plate is turned, the group transform turns the legend with the cut. -->
+  <g id="engrave" data-layer="engrave">
+    <g id="plate-L1-c1" data-rotation="0" transform="translate(0, 0)">
+      <text id="engrave-text-1-s1-L1-c1" x="10" y="4.3" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle"><tspan x="10" dy="0">ADMIN-AC7</tspan><tspan x="10" dy="3.5">THEATRE</tspan></text>
+    </g>
+    <g id="plate-L2-c1" data-rotation="0" transform="translate(20, 0)">
+      <text id="engrave-text-1-s1-L2-c1" x="10" y="4.3" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle"><tspan x="10" dy="0">ADMIN-AC8</tspan><tspan x="10" dy="3.5">PARMELIA</tspan></text>
+    </g>
+  </g>
+  <g id="cut" data-layer="cut">
+    <path d="M 0 0 L 40 0" fill="none" stroke="#FF0000" stroke-width="0.1"/>
+    <path d="M 0 0 L 0 10" fill="none" stroke="#FF0000" stroke-width="0.1"/>
+    <path d="M 20 0 L 20 10" fill="none" stroke="#FF0000" stroke-width="0.1"/>
+    <path d="M 40 0 L 40 10" fill="none" stroke="#FF0000" stroke-width="0.1"/>
+    <path d="M 0 10 L 40 10" fill="none" stroke="#FF0000" stroke-width="0.1"/>
+  </g>
+</svg>

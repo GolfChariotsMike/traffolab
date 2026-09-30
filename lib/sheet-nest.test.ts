@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { engraveLayout, textMetrics } from "./label-design";
 import { buildProductionDownload } from "./production-download";
 import {
   SHEET_HEIGHT_MM,
@@ -452,5 +454,95 @@ assert.match(summary, /2 × 40 × 20 mm/);
 const sheetFile = new TextDecoder().decode(entries[1].data);
 assert.match(sheetFile, /M 40 0 L 40 20/);
 assert.equal(sheetFile.split('d="M 40 0 L 40 20"').length - 1, 1);
+
+const longPlate = (
+  text: string
+): StoredPlate =>
+  plate({
+    widthMm: 20,
+    heightMm: 10,
+    qty: 1,
+    text,
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      {
+        id: "text-1",
+        text,
+        x: 10,
+        y: 5,
+        fontSize: 3,
+        align: "center",
+      },
+    ],
+  });
+
+const longLegends = nestPlates([
+  longPlate("ADMIN-AC7-THEATRE"),
+  longPlate("ADMIN-AC8-PARMELIA"),
+]);
+assert.equal(longLegends.sheets.length, 1);
+assert.equal(longLegends.sheets[0].placements.length, 2);
+assert.equal(longLegends.sheets[0].placements.every((item) => item.rotation === 0), true);
+assert.deepEqual(
+  longLegends.sheets[0].placements.map((item) => [item.xMm, item.yMm, item.widthMm, item.heightMm]),
+  [
+    [0, 0, 20, 10],
+    [20, 0, 20, 10],
+  ]
+);
+const longCuts = mergePlateCuts(longLegends.sheets[0].placements);
+assertCutsOnce(longCuts);
+const longShared = longCuts.filter((segment) => q(segment.x1) === 20000 && q(segment.x2) === 20000);
+assert.equal(longShared.length, 1);
+assert.equal(q(longShared[0].y1), 0);
+assert.equal(q(longShared[0].y2), 10000);
+for (const placement of longLegends.sheets[0].placements) {
+  const laid = engraveLayout(placement.plate.objects[0], placement.plate);
+  const box = textMetrics({ ...laid, type: "text" });
+  assert.equal(laid.text.split("\n").length, 2);
+  assert.ok(box.left >= -0.06, `${laid.text} left ${box.left}`);
+  assert.ok(box.top >= -0.06, `${laid.text} top ${box.top}`);
+  assert.ok(box.left + box.width <= 20.06, `${laid.text} right ${box.left + box.width}`);
+  assert.ok(box.top + box.height <= 10.06, `${laid.text} bottom ${box.top + box.height}`);
+}
+const longSvg = serializeNestSheetSvg(1001, longLegends.sheets[0]);
+assert.equal(longSvg.match(/<tspan /g)?.length, 4);
+assert.match(longSvg, />ADMIN-AC7</);
+assert.match(longSvg, />THEATRE</);
+assert.match(longSvg, />ADMIN-AC8</);
+assert.match(longSvg, />PARMELIA</);
+assert.doesNotMatch(longSvg, /ADMIN-AC7-THEATRE/);
+assert.doesNotMatch(longSvg, /ADMIN-AC8-PARMELIA/);
+assert.match(longSvg, /font-weight="400"/);
+assert.match(longSvg, /font-family="Arial, Helvetica, sans-serif"/);
+assert.match(longSvg, /fill="#000000"/);
+assert.match(longSvg, /stroke="#FF0000"/);
+assert.equal(longSvg.includes("<rect"), false);
+assert.equal(
+  parseCuts(longSvg).filter((segment) => q(segment.x1) === 20000 && q(segment.x2) === 20000).length,
+  1
+);
+const fixtureSvg = readFileSync(new URL("./fixtures/nest-20x10-long-legends.svg", import.meta.url), "utf8");
+assert.equal(longSvg, fixtureSvg);
+
+const longDownload = buildProductionDownload(1001, [
+  longPlate("ADMIN-AC7-THEATRE"),
+  longPlate("ADMIN-AC8-PARMELIA"),
+]);
+const longEntries = unzipStore(longDownload!.body);
+const longSheet = new TextDecoder().decode(
+  longEntries.find((entry) => entry.name.startsWith("sheets/"))!.data
+);
+const longPiece = new TextDecoder().decode(
+  longEntries.find((entry) => entry.name.startsWith("pieces/"))!.data
+);
+assert.match(longSheet, />ADMIN-AC7</);
+assert.match(longSheet, />THEATRE</);
+assert.match(longPiece, />ADMIN-AC7</);
+assert.match(longPiece, />THEATRE</);
+assert.match(longPiece, /font-weight="400"/);
+assert.match(longPiece, /stroke="#FF0000"/);
+assert.match(longPiece, /fill="#000000"/);
 
 console.log("lib/sheet-nest.test.ts: ok");
