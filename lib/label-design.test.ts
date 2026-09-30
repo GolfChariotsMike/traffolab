@@ -102,6 +102,9 @@ function assertFills(
         objects: [fitted],
       });
       assert.match(svg, new RegExp(`font-size="${fitted.fontSize}"`));
+      assert.match(svg, /font-weight="400"/);
+      assert.doesNotMatch(svg, /font-weight="600"/);
+      assert.match(svg, /font-family="Space Grotesk, Arial, sans-serif"/);
       assert.match(svg, new RegExp(`>${text}<`));
     }
   }
@@ -340,6 +343,7 @@ function assertFills(
   };
   const svg = serializeLightBurnSvg(design);
   assert.match(svg, new RegExp(`font-size="${moved.fontSize}"`));
+  assert.match(svg, /font-weight="400"/);
   assert.match(svg, new RegExp(`x="${moved.x}"`));
   assert.match(svg, new RegExp(`y="${moved.y}"`));
   assert.equal(svg.includes('stroke="#FEE100"'), false);
