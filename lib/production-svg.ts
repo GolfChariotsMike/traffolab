@@ -6,6 +6,7 @@
  * setting Silhouette used. Black fill is engrave. Red stroke is the cut line.
  */
 
+import { LINE_HEIGHT } from "@/lib/label-design";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 
 export const ENGRAVE_FILL = "#000000";
@@ -31,7 +32,7 @@ function serializeText(object: PlateObject) {
   const lines = object.text.length > 0 ? object.text.split("\n") : [""];
   const tspans = lines
     .map((line, index) => {
-      const dy = index === 0 ? 0 : Math.round(object.fontSize * 1.15 * 10) / 10;
+      const dy = index === 0 ? 0 : Math.round(object.fontSize * LINE_HEIGHT * 10) / 10;
       return `<tspan x="${object.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
     })
     .join("");
