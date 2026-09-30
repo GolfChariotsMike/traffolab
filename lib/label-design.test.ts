@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_DESIGN,
   MIN_FONT_MM,
+  SIZE_PRESETS,
+  applyPlateSize,
+  autoTextInset,
   clampObjectToPlate,
+  createLegendDesign,
+  createTextObject,
+  fitTextToPlate,
+  maxFontForPlate,
   resizeTextObject,
   serializeLightBurnSvg,
+  shrinkTextToPlate,
   textMetrics,
   type ResizeHandle,
   type TextObject,
@@ -35,13 +43,107 @@ function legend(
   return { id: "text-1", type: "text", ...patch };
 }
 
+function assertFills(
+  object: TextObject,
+  plate: { widthMm: number; heightMm: number },
+  label: string
+) {
+  assertInside(object, plate, label);
+  const metrics = textMetrics(object);
+  const inset = autoTextInset(plate);
+  const slackX = plate.widthMm - metrics.width;
+  const slackY = plate.heightMm - metrics.height;
+  const usedX = metrics.width / plate.widthMm;
+  const usedY = metrics.height / plate.heightMm;
+  assert.ok(
+    usedX >= 0.8 || usedY >= 0.8,
+    `${label} uses ${(usedX * 100).toFixed(0)}% width and ${(usedY * 100).toFixed(0)}% height at ${object.fontSize} mm`
+  );
+  const tight = Math.min(slackX, slackY);
+  const allowance = Math.max(inset.x, inset.y) * 2 + 1.4;
+  assert.ok(
+    tight <= allowance,
+    `${label} margin ${tight.toFixed(2)} mm (x ${slackX.toFixed(2)}, y ${slackY.toFixed(2)})`
+  );
+}
+
 {
   const plate = DEFAULT_DESIGN;
-  const same = clampObjectToPlate(DEFAULT_DESIGN.objects[0], plate);
-  assert.equal(same.fontSize, 6.5);
-  assert.equal(same.x, 10);
-  assert.equal(same.y, 6.8);
-  assertInside(same, plate, "default");
+  const legendObject = plate.objects[0];
+  assert.equal(legendObject.text, "MAIN");
+  assert.equal(legendObject.align, "center");
+  assert.ok(legendObject.fontSize > 6.5, `default font ${legendObject.fontSize}`);
+  assertFills(legendObject, plate, "default");
+  const same = clampObjectToPlate(legendObject, plate);
+  assert.equal(same.fontSize, legendObject.fontSize);
+  assert.equal(same.x, legendObject.x);
+  assert.equal(same.y, legendObject.y);
+}
+
+{
+  for (const preset of SIZE_PRESETS) {
+    for (const text of ["MAIN", "MAIN SWITCH", "PV ISOLATOR", "DB-1"]) {
+      const fitted = fitTextToPlate(
+        legend({ text, x: 0, y: 0, fontSize: MIN_FONT_MM, align: "center" }),
+        preset
+      );
+      assertFills(fitted, preset, `${preset.id} ${text}`);
+      const svg = serializeLightBurnSvg({
+        ...DEFAULT_DESIGN,
+        widthMm: preset.widthMm,
+        heightMm: preset.heightMm,
+        objects: [fitted],
+      });
+      assert.match(svg, new RegExp(`font-size="${fitted.fontSize}"`));
+      assert.match(svg, new RegExp(`>${text}<`));
+    }
+  }
+}
+
+{
+  const samples = [
+    createLegendDesign("yellow-black", 45, 12, "MAIN SWITCH"),
+    createLegendDesign("white-black", 100, 25, "PV ISOLATOR"),
+    createLegendDesign("red-white", 60, 20, "DB-1 CIRCUIT 14"),
+    createLegendDesign("black-white", 80, 30, "PUMP\n1"),
+  ];
+  for (const design of samples) {
+    const object = design.objects[0];
+    assertFills(object, design, `${design.widthMm}x${design.heightMm} ${object.text}`);
+    const svg = serializeLightBurnSvg(design);
+    assert.match(svg, new RegExp(`font-size="${object.fontSize}"`));
+  }
+}
+
+{
+  const plate = { widthMm: 100, heightMm: 50 };
+  const grown = applyPlateSize(
+    {
+      ...DEFAULT_DESIGN,
+      objects: [
+        legend({ text: "MAIN", x: 10, y: 6, fontSize: 6.5, align: "center" }),
+      ],
+    },
+    plate.widthMm,
+    plate.heightMm
+  );
+  assert.equal(grown.widthMm, 100);
+  assert.equal(grown.heightMm, 50);
+  assert.ok(grown.objects[0].fontSize > 20, `scaled font ${grown.objects[0].fontSize}`);
+  assertFills(grown.objects[0], grown, "size up");
+}
+
+{
+  const plate = { widthMm: 80, heightMm: 30 };
+  const added = createTextObject(plate, "text-2");
+  assert.equal(added.text, "TEXT");
+  assertFills(added, plate, "new text");
+  const kept = shrinkTextToPlate(
+    legend({ text: "MAIN", x: 20, y: 12, fontSize: 5, align: "center" }),
+    plate
+  );
+  assert.equal(kept.fontSize, 5);
+  assert.equal(kept.x, 20);
 }
 
 {
@@ -210,7 +312,10 @@ function legend(
       { x: centerX + 4, y: centerY + 4 }
     );
     assert.ok(grown.fontSize >= MIN_FONT_MM);
-    assert.ok(grown.fontSize <= 16, `${handle} font ${grown.fontSize}`);
+    assert.ok(
+      grown.fontSize <= maxFontForPlate(start.text, plate),
+      `${handle} font ${grown.fontSize}`
+    );
     assertInside(grown, plate, handle);
   }
 }

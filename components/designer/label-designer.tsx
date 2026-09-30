@@ -18,6 +18,7 @@ import {
   clampObjectToPlate,
   createOrderLine,
   createTextObject,
+  fitTextToPlate,
   designSummary,
   downloadSvg,
   nextObjectId,
@@ -65,11 +66,12 @@ export function LabelDesigner() {
       if (!selectedId) return;
       setDesign((current) => ({
         ...current,
-        objects: current.objects.map((object) =>
-          object.id === selectedId
-            ? clampObjectToPlate({ ...object, ...patch }, current)
-            : object
-        ),
+        objects: current.objects.map((object) => {
+          if (object.id !== selectedId) return object;
+          const next = { ...object, ...patch };
+          if (typeof patch.text === "string") return fitTextToPlate(next, current);
+          return clampObjectToPlate(next, current);
+        }),
       }));
     },
     [selectedId]

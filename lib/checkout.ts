@@ -4,7 +4,7 @@
  * line_items. Never trust client-supplied money amounts.
  */
 
-import { COLOUR_PAIRS, type ColourPairId } from "@/lib/label-design";
+import { COLOUR_PAIRS, MAX_FONT_MM, type ColourPairId } from "@/lib/label-design";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 import {
   SHIPPING_METHODS,
@@ -143,7 +143,7 @@ function parseLineDesign(
       !Number.isFinite(y) ||
       !Number.isFinite(fontSize) ||
       fontSize < 0.5 ||
-      fontSize > 80 ||
+      fontSize > MAX_FONT_MM ||
       Math.abs(x) > 3000 ||
       Math.abs(y) > 3000
     ) {

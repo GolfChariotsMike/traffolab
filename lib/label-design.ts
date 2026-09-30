@@ -6,11 +6,101 @@ export const MAX_PLATE_WIDTH_MM = 300;
 export const MAX_PLATE_HEIGHT_MM = 200;
 
 export const MIN_FONT_MM = 3;
-export const MAX_FONT_MM = 40;
+/** Largest em that still fits the tallest allowed plate, and the checkout ceiling. */
+export const MAX_FONT_MM = 80;
 
 export const LINE_HEIGHT = 1.15;
+/** Fallback advance for characters outside the measured Space Grotesk set. */
 export const CHAR_WIDTH_EM = 0.62;
 export const ENGRAVE_FONT_FAMILY = "Space Grotesk, Arial, sans-serif";
+
+/**
+ * Space Grotesk at weight 600. Caps are 0.70em, not the 1.15 line box, so
+ * auto-fit uses this glyph box or the type stays small inside the plate.
+ */
+const GLYPH_ASCENT_EM = 0.72;
+const GLYPH_ASCENT_TALL_EM = 0.78;
+const GLYPH_DESCENT_EM = 0.22;
+const GLYPH_DESCENT_FLAT_EM = 0.02;
+const DESCENDER_RE = /[gjpqyQ,;()[\]{}]/;
+const TALL_RE = /[()[\]{}|]/;
+
+/** Advance widths in em, measured from Space Grotesk weight 600. */
+const GLYPH_EM: Record<string, number> = {
+  " ": 0.255,
+  "-": 0.438,
+  _: 0.62,
+  ".": 0.287,
+  ",": 0.284,
+  ":": 0.287,
+  ";": 0.287,
+  "/": 0.384,
+  "&": 0.594,
+  "+": 0.62,
+  "#": 0.634,
+  "0": 0.646,
+  "1": 0.444,
+  "2": 0.596,
+  "3": 0.607,
+  "4": 0.633,
+  "5": 0.6,
+  "6": 0.617,
+  "7": 0.556,
+  "8": 0.606,
+  "9": 0.617,
+  A: 0.633,
+  B: 0.663,
+  C: 0.643,
+  D: 0.665,
+  E: 0.556,
+  F: 0.535,
+  G: 0.661,
+  H: 0.656,
+  I: 0.259,
+  J: 0.606,
+  K: 0.622,
+  L: 0.543,
+  M: 0.878,
+  N: 0.668,
+  O: 0.674,
+  P: 0.603,
+  Q: 0.674,
+  R: 0.632,
+  S: 0.608,
+  T: 0.588,
+  U: 0.671,
+  V: 0.618,
+  W: 0.892,
+  X: 0.642,
+  Y: 0.621,
+  Z: 0.576,
+  a: 0.577,
+  b: 0.639,
+  c: 0.589,
+  d: 0.639,
+  e: 0.581,
+  f: 0.437,
+  g: 0.639,
+  h: 0.615,
+  i: 0.261,
+  j: 0.263,
+  k: 0.558,
+  l: 0.261,
+  m: 0.855,
+  n: 0.615,
+  o: 0.613,
+  p: 0.639,
+  q: 0.639,
+  r: 0.391,
+  s: 0.525,
+  t: 0.457,
+  u: 0.615,
+  v: 0.546,
+  w: 0.788,
+  x: 0.592,
+  y: 0.615,
+  z: 0.519,
+};
 
 export const SIZE_PRESETS = [
   { id: "20x10", label: "20 × 10", widthMm: 20, heightMm: 10 },
@@ -94,17 +184,7 @@ export const DEFAULT_DESIGN: LabelDesign = {
   heightMm: DEFAULT_PRESET.heightMm,
   colourPair: "yellow-black",
   adhesive3m: false,
-  objects: [
-    {
-      id: "text-1",
-      type: "text",
-      text: "MAIN",
-      x: 10,
-      y: 6.8,
-      fontSize: 6.5,
-      align: "center",
-    },
-  ],
+  objects: [],
 };
 
 export function clamp(value: number, min: number, max: number) {
@@ -167,16 +247,18 @@ export function createTextObject(
   plate: Pick<LabelDesign, "widthMm" | "heightMm">,
   id: string
 ): TextObject {
-  const fontSize = clamp(roundMm(plate.heightMm * 0.28), MIN_FONT_MM, 18);
-  return {
-    id,
-    type: "text",
-    text: "TEXT",
-    x: roundMm(plate.widthMm / 2),
-    y: roundMm(plate.heightMm / 2 + fontSize * 0.35),
-    fontSize,
-    align: "center",
-  };
+  return fitTextToPlate(
+    {
+      id,
+      type: "text",
+      text: "TEXT",
+      x: plate.widthMm / 2,
+      y: plate.heightMm / 2,
+      fontSize: MIN_FONT_MM,
+      align: "center",
+    },
+    plate
+  );
 }
 
 export function textLines(text: string) {
@@ -185,16 +267,16 @@ export function textLines(text: string) {
 
 export function textMetrics(object: TextObject) {
   const lines = textLines(object.text);
-  const maxChars = Math.max(1, ...lines.map((line) => line.length));
-  const width = maxChars * object.fontSize * CHAR_WIDTH_EM;
-  const height = lines.length * object.fontSize * LINE_HEIGHT;
+  const { kW, kH, ascent } = textFactors(object.text);
+  const width = kW * object.fontSize;
+  const height = kH * object.fontSize;
   const left =
     object.align === "center"
       ? object.x - width / 2
       : object.align === "right"
         ? object.x - width
         : object.x;
-  const top = object.y - object.fontSize * 0.82;
+  const top = object.y - object.fontSize * ascent;
   return { left, top, width, height, lines };
 }
 
@@ -234,14 +316,84 @@ type EdgePins = {
   centerY?: number;
 };
 
-function textFactors(text: string) {
-  const lines = textLines(text);
-  const maxChars = Math.max(1, ...lines.map((line) => line.length));
+function lineEmWidth(line: string) {
+  if (line.length === 0) return CHAR_WIDTH_EM;
+  let em = 0;
+  for (const char of line) em += GLYPH_EM[char] ?? CHAR_WIDTH_EM;
+  return Math.max(em, 0.2);
+}
+
+function lineVertical(line: string) {
   return {
-    kW: maxChars * CHAR_WIDTH_EM,
-    kH: lines.length * LINE_HEIGHT,
+    ascent: TALL_RE.test(line) ? GLYPH_ASCENT_TALL_EM : GLYPH_ASCENT_EM,
+    descent: DESCENDER_RE.test(line) ? GLYPH_DESCENT_EM : GLYPH_DESCENT_FLAT_EM,
   };
 }
+
+function textFactors(text: string) {
+  const lines = textLines(text);
+  const kW = Math.max(...lines.map(lineEmWidth));
+  const first = lineVertical(lines[0] ?? "");
+  const last = lineVertical(lines[lines.length - 1] ?? "");
+  const kH =
+    lines.length <= 1
+      ? first.ascent + first.descent
+      : first.ascent + (lines.length - 1) * LINE_HEIGHT + last.descent;
+  return { kW, kH, ascent: first.ascent };
+}
+
+/** Modest clear border around auto-sized engraving, in millimetres. */
+export function autoTextInset(plate: PlateSize) {
+  return {
+    x: clamp(roundMm(plate.widthMm * 0.045), 0.7, 2.5),
+    y: clamp(roundMm(plate.heightMm * 0.07), 0.55, 2.2),
+  };
+}
+
+/**
+ * Largest type that fills the plate on the limiting axis, with a small inset,
+ * then centred (or pinned to that inset when the legend is left or right aligned).
+ */
+export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject {
+  const { kW, kH, ascent } = textFactors(object.text);
+  const inset = autoTextInset(plate);
+  const innerW = Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
+  const innerH = Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
+  const fit = Math.min(innerW / kW, innerH / kH);
+  const fontSize = clamp(
+    floorMm(Number.isFinite(fit) ? fit : MIN_FONT_MM),
+    MIN_FONT_MM,
+    maxFontForPlate(object.text, plate)
+  );
+  const height = kH * fontSize;
+  const x =
+    object.align === "left"
+      ? inset.x
+      : object.align === "right"
+        ? plate.widthMm - inset.x
+        : plate.widthMm / 2;
+  const y = (plate.heightMm - height) / 2 + ascent * fontSize;
+  return clampObjectToPlate(
+    { ...object, fontSize, x: roundMm(x), y: roundMm(y) },
+    plate
+  );
+}
+
+// Fitted once fitTextToPlate exists, so the opening legend matches every other plate.
+DEFAULT_DESIGN.objects = [
+  fitTextToPlate(
+    {
+      id: "text-1",
+      type: "text",
+      text: "MAIN",
+      x: DEFAULT_PRESET.widthMm / 2,
+      y: DEFAULT_PRESET.heightMm / 2,
+      fontSize: MIN_FONT_MM,
+      align: "center",
+    },
+    DEFAULT_PRESET
+  ),
+];
 
 function textBox(object: TextObject): TextBox {
   const metrics = textMetrics(object);
@@ -414,6 +566,7 @@ function placeWithPins(
 ): TextObject {
   const fontSize = object.fontSize;
   const width = kW * fontSize;
+  const { ascent } = textFactors(object.text);
   let x = object.x;
   let y = object.y;
 
@@ -432,11 +585,11 @@ function placeWithPins(
   }
 
   if (pins.centerY !== undefined) {
-    y = pins.centerY - fontSize * (kH / 2 - 0.82);
+    y = pins.centerY - fontSize * (kH / 2 - ascent);
   } else if (pins.top !== undefined) {
-    y = pins.top + fontSize * 0.82;
+    y = pins.top + fontSize * ascent;
   } else if (pins.bottom !== undefined) {
-    y = pins.bottom - fontSize * (kH - 0.82);
+    y = pins.bottom - fontSize * (kH - ascent);
   }
 
   return { ...object, x, y };
@@ -483,21 +636,9 @@ export function shrinkTextToPlate(
   object: TextObject,
   plate: Pick<LabelDesign, "widthMm" | "heightMm">
 ): TextObject {
-  const lines = textLines(object.text);
-  const maxChars = Math.max(1, ...lines.map((line) => line.length));
-  const widthLimit = (plate.widthMm - 4) / (maxChars * CHAR_WIDTH_EM);
-  const heightLimit = (plate.heightMm - 2) / (lines.length * LINE_HEIGHT);
-  return clampObjectToPlate(
-    {
-      ...object,
-      fontSize: clamp(
-        roundMm(Math.min(object.fontSize, widthLimit, heightLimit)),
-        MIN_FONT_MM,
-        MAX_FONT_MM
-      ),
-    },
-    plate
-  );
+  const fitted = fitTextToPlate(object, plate);
+  if (fitted.fontSize + 0.05 < object.fontSize) return fitted;
+  return clampObjectToPlate(object, plate);
 }
 
 export function applyPlateSize(
@@ -506,10 +647,33 @@ export function applyPlateSize(
   heightMm: number
 ): LabelDesign {
   const size = clampPlateSize(widthMm, heightMm);
+  if (size.widthMm === design.widthMm && size.heightMm === design.heightMm) {
+    return design;
+  }
+  if (design.objects.length <= 1) {
+    return {
+      ...design,
+      ...size,
+      objects: design.objects.map((object) => fitTextToPlate(object, size)),
+    };
+  }
+  const sx = size.widthMm / design.widthMm;
+  const sy = size.heightMm / design.heightMm;
+  const scale = Math.min(sx, sy);
   return {
     ...design,
     ...size,
-    objects: design.objects.map((object) => shrinkTextToPlate(object, size)),
+    objects: design.objects.map((object) =>
+      shrinkTextToPlate(
+        {
+          ...object,
+          fontSize: object.fontSize * scale,
+          x: object.x * sx,
+          y: object.y * sy,
+        },
+        size
+      )
+    ),
   };
 }
 
@@ -542,13 +706,25 @@ export function createLegendDesign(
   text: string
 ): LabelDesign {
   const size = { widthMm, heightMm };
-  const seed = createTextObject(size, "text-1");
   return {
     version: DESIGN_VERSION,
     ...size,
     colourPair,
     adhesive3m: false,
-    objects: [shrinkTextToPlate({ ...seed, text }, size)],
+    objects: [
+      fitTextToPlate(
+        {
+          id: "text-1",
+          type: "text",
+          text,
+          x: widthMm / 2,
+          y: heightMm / 2,
+          fontSize: MIN_FONT_MM,
+          align: "center",
+        },
+        size
+      ),
+    ],
   };
 }
 
