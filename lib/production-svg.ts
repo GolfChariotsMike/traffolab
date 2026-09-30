@@ -6,7 +6,12 @@
  * setting Silhouette used. Black fill is engrave. Red stroke is the cut line.
  */
 
-import { ENGRAVE_FONT_FAMILY, ENGRAVE_FONT_WEIGHT, LINE_HEIGHT } from "@/lib/label-design";
+import {
+  ENGRAVE_FONT_FAMILY,
+  ENGRAVE_FONT_WEIGHT,
+  LINE_HEIGHT,
+  engraveLayout,
+} from "@/lib/label-design";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 
 export const ENGRAVE_FILL = "#000000";
@@ -35,22 +40,29 @@ export function plateCopyCount(qty: number) {
 }
 
 /** Plate-local engrave text. A parent transform can rotate it with the cut rectangle. */
-export function serializeEngraveText(object: PlateObject, idSuffix = "") {
-  const lines = object.text.length > 0 ? object.text.split("\n") : [""];
+export function serializeEngraveText(
+  object: PlateObject,
+  idSuffix = "",
+  plate?: Pick<StoredPlate, "widthMm" | "heightMm">
+) {
+  const laid = plate ? engraveLayout(object, plate) : object;
+  const lines = laid.text.length > 0 ? laid.text.split("\n") : [""];
   const tspans = lines
     .map((line, index) => {
-      const dy = index === 0 ? 0 : Math.round(object.fontSize * LINE_HEIGHT * 10) / 10;
-      return `<tspan x="${object.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
+      const dy = index === 0 ? 0 : Math.round(laid.fontSize * LINE_HEIGHT * 10) / 10;
+      return `<tspan x="${laid.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
     })
     .join("");
-  const id = `engrave-${object.id}${idSuffix}`;
-  return `<text id="${escapeXml(id)}" x="${object.x}" y="${object.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${object.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(object.align)}">${tspans}</text>`;
+  const id = `engrave-${laid.id}${idSuffix}`;
+  return `<text id="${escapeXml(id)}" x="${laid.x}" y="${laid.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${tspans}</text>`;
 }
 
 export function serializeProductionSvg(
   plate: Pick<StoredPlate, "widthMm" | "heightMm" | "colourLabel" | "adhesive3m" | "objects">
 ) {
-  const texts = plate.objects.map((object) => serializeEngraveText(object)).join("\n    ");
+  const texts = plate.objects
+    .map((object) => serializeEngraveText(object, "", plate))
+    .join("\n    ");
   const material = plate.colourLabel
     ? `${plate.colourLabel}${plate.adhesive3m ? " · 3M adhesive" : ""}`
     : "unspecified laminate";

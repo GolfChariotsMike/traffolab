@@ -578,7 +578,7 @@ export function serializeNestSheetSvg(orderNumber: number, sheet: NestSheet) {
     .map((placement) => {
       const suffix = `-s${sheet.index}-L${placement.lineIndex + 1}-c${placement.copy}`;
       const texts = placement.plate.objects
-        .map((object) => serializeEngraveText(object, suffix))
+        .map((object) => serializeEngraveText(object, suffix, placement.plate))
         .join("\n      ");
       const id = `plate-L${placement.lineIndex + 1}-c${placement.copy}`;
       const body = texts ? `\n      ${texts}\n    ` : "";

@@ -12,6 +12,7 @@ import {
   textAnchor,
   textLines,
   textMetrics,
+  wrapLegendToFit,
   type LabelDesign,
   type ResizeHandle,
   type TextObject,
@@ -252,6 +253,7 @@ export function PlateCanvas({
           <TextNode
             key={object.id}
             object={object}
+            plate={{ widthMm: design.widthMm, heightMm: design.heightMm }}
             fill={colours.core}
             dragging={dragging && object.id === selectedId}
             scale={scale}
@@ -262,6 +264,7 @@ export function PlateCanvas({
         {selected ? (
           <ResizeHandles
             object={selected}
+            plate={{ widthMm: design.widthMm, heightMm: design.heightMm }}
             scale={scale}
             onPointerDown={handleResizePointerDown}
           />
@@ -273,12 +276,14 @@ export function PlateCanvas({
 
 function TextNode({
   object,
+  plate,
   fill,
   dragging,
   scale,
   onPointerDown,
 }: {
   object: TextObject;
+  plate: { widthMm: number; heightMm: number };
   fill: string;
   dragging: boolean;
   scale: number;
@@ -287,8 +292,8 @@ function TextNode({
     object: TextObject
   ) => void;
 }) {
-  const metrics = textMetrics(object);
-  const lines = textLines(object.text);
+  const metrics = textMetrics(object, plate);
+  const lines = textLines(wrapLegendToFit(object.text, plate));
   const slop = 6 / scale;
 
   return (
@@ -331,10 +336,12 @@ function TextNode({
 
 function ResizeHandles({
   object,
+  plate,
   scale,
   onPointerDown,
 }: {
   object: TextObject;
+  plate: { widthMm: number; heightMm: number };
   scale: number;
   onPointerDown: (
     event: React.PointerEvent<SVGRectElement>,
@@ -347,7 +354,7 @@ function ResizeHandles({
 
   return (
     <g>
-      {resizeHandlePoints(object).map((point) => {
+      {resizeHandlePoints(object, plate).map((point) => {
         return (
           <g key={point.id} style={{ cursor: HANDLE_CURSOR[point.id] }}>
             <rect
