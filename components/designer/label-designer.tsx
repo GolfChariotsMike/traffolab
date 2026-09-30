@@ -206,8 +206,8 @@ export function LabelDesigner() {
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-[1440px] gap-0 lg:grid-cols-[17rem_minmax(0,1fr)_19rem]">
-        <aside className="order-2 border-b border-white/10 p-4 lg:order-1 lg:border-r lg:border-b-0">
+      <div className="mx-auto grid max-w-[1440px] items-start gap-0 lg:grid-cols-[17rem_minmax(0,1fr)_19rem]">
+        <aside className="order-2 border-b border-white/10 p-4 lg:sticky lg:top-[3.75rem] lg:order-1 lg:max-h-[calc(100svh-3.75rem)] lg:self-start lg:overflow-y-auto lg:border-r lg:border-b-0 lg:bg-[#12151a]">
           <h3 className="mb-4 font-mono text-[10px] tracking-[0.18em] text-paper/50 uppercase">
             Plate setup
           </h3>
@@ -226,7 +226,7 @@ export function LabelDesigner() {
         </aside>
 
         <PlateCanvas
-          className="order-1 lg:order-2"
+          className="order-1 lg:sticky lg:top-[3.75rem] lg:z-10 lg:order-2 lg:max-h-[calc(100svh-3.75rem)] lg:self-start"
           design={design}
           selectedId={selectedId}
           onSelect={setSelectedId}
@@ -275,6 +275,7 @@ export function LabelDesigner() {
             </h3>
             <OrderPanel
               lines={orderLines}
+              listClassName="lg:max-h-[min(24rem,calc(100svh-22rem))] lg:overflow-y-auto lg:overscroll-contain"
               onQty={(id, qty) =>
                 setOrderLines((current) =>
                   current.map((line) =>
