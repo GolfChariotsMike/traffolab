@@ -55,10 +55,17 @@ function assertFills(
   const slackY = plate.heightMm - metrics.height;
   const usedX = metrics.width / plate.widthMm;
   const usedY = metrics.height / plate.heightMm;
+  const fill = Math.max(usedX, usedY);
   assert.ok(
-    usedX >= 0.8 || usedY >= 0.8,
+    fill >= 0.8,
     `${label} uses ${(usedX * 100).toFixed(0)}% width and ${(usedY * 100).toFixed(0)}% height at ${object.fontSize} mm`
   );
+  if (object.fontSize > MIN_FONT_MM) {
+    assert.ok(
+      fill <= 0.88,
+      `${label} fill ${(fill * 100).toFixed(0)}% leaves a larger margin than a ~90% fit`
+    );
+  }
   const tight = Math.min(slackX, slackY);
   const allowance = Math.max(inset.x, inset.y) * 2 + 1.4;
   assert.ok(
