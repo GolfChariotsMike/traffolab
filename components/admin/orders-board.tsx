@@ -174,7 +174,7 @@ export function OrdersBoard({
               className="h-9 rounded-full bg-[#fee100] px-4 text-sm font-medium text-[#12151a] hover:bg-[#ffe866]"
               onClick={() => setImportOpen(true)}
             >
-              Import CSV
+              Add Order
             </button>
           <label className="flex items-center gap-2 text-sm text-white/70">
             <span className="font-mono text-[10px] tracking-[0.16em] uppercase">Status</span>
@@ -221,7 +221,7 @@ export function OrdersBoard({
                   <tr>
                     <td colSpan={9} className="px-4 py-10 text-sm text-white/55">
                       {orders.length === 0
-                        ? "No orders yet. A Stripe payment or an Import CSV order appears here as NEW."
+                        ? "No orders yet. A Stripe payment or an order you add appears here as NEW."
                         : "No orders in this status."}
                     </td>
                   </tr>
