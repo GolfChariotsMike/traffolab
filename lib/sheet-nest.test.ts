@@ -545,4 +545,69 @@ assert.match(longPiece, /font-weight="400"/);
 assert.match(longPiece, /stroke="#FF0000"/);
 assert.match(longPiece, /fill="#000000"/);
 
+const wideLong = nestPlates([
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "ADMIN-AC4",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      { id: "text-1", text: "ADMIN-AC4", x: 20, y: 12.2, fontSize: 6.1, align: "center" },
+    ],
+  }),
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "ADMIN-AC7-THEATRE",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      {
+        id: "text-1",
+        text: "ADMIN-AC7-THEATRE",
+        x: 20,
+        y: 11.1,
+        fontSize: 3.2,
+        align: "center",
+      },
+    ],
+  }),
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "ADMIN-AC8-PARMELIA",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      {
+        id: "text-1",
+        text: "ADMIN-AC8-PARMELIA",
+        x: 20,
+        y: 11.1,
+        fontSize: 3.1,
+        align: "center",
+      },
+    ],
+  }),
+]);
+const wideSvg = serializeNestSheetSvg(1001, wideLong.sheets[0]);
+assert.equal(wideSvg.match(/<tspan /g)?.length, 5);
+assert.match(wideSvg, />ADMIN-AC4</);
+assert.match(
+  wideSvg,
+  /<tspan x="20" dy="0">ADMIN-AC7<\/tspan><tspan x="20" dy="[^"]+">THEATRE<\/tspan>/
+);
+assert.match(
+  wideSvg,
+  /<tspan x="20" dy="0">ADMIN-AC8<\/tspan><tspan x="20" dy="[^"]+">PARMELIA<\/tspan>/
+);
+assert.doesNotMatch(wideSvg, />ADMIN-AC7-THEATRE</);
+assert.doesNotMatch(wideSvg, />ADMIN-AC8-PARMELIA</);
+assert.match(wideSvg, /font-size="6.1"/);
+assert.equal(wideSvg.match(/font-size="6.1"/g)?.length, 3);
+
 console.log("lib/sheet-nest.test.ts: ok");
