@@ -386,6 +386,18 @@ function legendInnerWidth(plate: PlateSize) {
   return Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
 }
 
+function legendInnerHeight(plate: PlateSize) {
+  const inset = autoTextInset(plate);
+  return Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
+}
+
+/** Largest em that sits in the auto-fit inset, before the 0.1 mm floor. */
+function legendFitMm(text: string, plate: PlateSize) {
+  const { kW, kH } = textFactors(text);
+  const fit = Math.min(legendInnerWidth(plate) / kW, legendInnerHeight(plate) / kH);
+  return Number.isFinite(fit) ? fit : 0;
+}
+
 function splitScore(left: string, right: string) {
   const leftW = lineEmWidth(left);
   const rightW = lineEmWidth(right);
@@ -442,31 +454,96 @@ function midTokenSplits(text: string): Array<[string, string]> {
 }
 
 /**
- * Two lines when one line cannot sit inside the plate inset at {@link MIN_FONT_MM}.
- * A newline already in the legend is a manual break and stays as typed.
- * Example: `ADMIN-AC7-THEATRE` on a 20×10 becomes `ADMIN-AC7` / `THEATRE`.
+ * Single-line type below this fraction of the plate's height fill is wrapped,
+ * when a hyphen or space split can set larger type. Height fill is the size a
+ * short legend reaches when width is not the limit (about 21.9 mm on a 40×20).
+ * 20% leaves a two-part code such as ADMIN-AC4 or ADMIN-AC12.1 on one line.
+ * Three-part codes use {@link threePartSplit} instead of a higher cutoff.
  */
-export function wrapLegendToFit(text: string, plate: PlateSize): string {
-  if (text.includes("\n") || text.trim().length === 0) return text;
-  const innerW = legendInnerWidth(plate);
-  if (lineEmWidth(text) * MIN_FONT_MM <= innerW + 1e-4) return text;
+const SINGLE_LINE_MIN_FILL = 0.2;
 
+/** 20×10 is the small plate. Wider or taller plates take the three-part wrap. */
+function isBeyondSmallPlate(plate: PlateSize) {
+  return plate.widthMm > 20 + 1e-4 || plate.heightMm > 10 + 1e-4;
+}
+
+/**
+ * Two or more hyphens (RTP-AC2-OAK, CW-03-BOH, CW-01-ER) break at the last
+ * hyphen on a plate larger than 20×10, when that sets larger type.
+ * Example: `RTP-AC2-OAK` becomes `RTP-AC2` / `OAK`.
+ */
+function threePartSplit(text: string, plate: PlateSize, innerW: number): [string, string] | null {
+  if (!isBeyondSmallPlate(plate)) return null;
+  let hyphens = 0;
+  for (const char of text) if (char === "-") hyphens += 1;
+  if (hyphens < 2) return null;
+  const index = text.lastIndexOf("-");
+  const left = text.slice(0, index).trim();
+  const right = text.slice(index + 1).trim();
+  if (!left || !right || !pairFitsInset(left, right, innerW)) return null;
+  const single = legendFitMm(text, plate);
+  const doubled = legendFitMm(`${left}\n${right}`, plate);
+  if (doubled <= single + 1e-6) return null;
+  return [left, right];
+}
+
+/** Cap-height legend with no descender: the size that fills the plate vertically. */
+function singleLineHeightFill(plate: PlateSize) {
+  const { kH } = textFactors("A");
+  const fit = legendInnerHeight(plate) / kH;
+  return Number.isFinite(fit) ? fit : 0;
+}
+
+function overflowWrapPool(text: string, innerW: number): Array<[string, string]> {
   const delimiters = delimiterSplits(text);
   const fittingDelimiters = delimiters.filter((pair) =>
     pairFitsInset(pair[0], pair[1], innerW)
   );
-  let pool = fittingDelimiters;
-  if (pool.length === 0) {
-    const fittingMids = midTokenSplits(text).filter((pair) =>
-      pairFitsInset(pair[0], pair[1], innerW)
-    );
-    pool =
-      fittingMids.length > 0
-        ? fittingMids
-        : delimiters.length > 0
-          ? delimiters
-          : midTokenSplits(text);
+  if (fittingDelimiters.length > 0) return fittingDelimiters;
+  const fittingMids = midTokenSplits(text).filter((pair) =>
+    pairFitsInset(pair[0], pair[1], innerW)
+  );
+  if (fittingMids.length > 0) return fittingMids;
+  if (delimiters.length > 0) return delimiters;
+  return midTokenSplits(text);
+}
+
+/**
+ * Two lines when one line cannot sit inside the plate inset at {@link MIN_FONT_MM},
+ * when a three-part code on a plate larger than 20×10 can set larger type by
+ * breaking at the last hyphen, or when that one line would fall below
+ * {@link SINGLE_LINE_MIN_FILL} of the plate's height fill and a hyphen or space
+ * split can set larger type.
+ * A newline already in the legend is a manual break and stays as typed.
+ * Example: `ADMIN-AC7-THEATRE` becomes `ADMIN-AC7` / `THEATRE` on 20×10 and 40×20.
+ * Example: `RTP-AC2-OAK` becomes `RTP-AC2` / `OAK` on 40×20.
+ */
+export function wrapLegendToFit(text: string, plate: PlateSize): string {
+  if (text.includes("\n") || text.trim().length === 0) return text;
+  const innerW = legendInnerWidth(plate);
+  const threePart = threePartSplit(text, plate, innerW);
+  if (threePart) return `${threePart[0]}\n${threePart[1]}`;
+  const overflowsMin = lineEmWidth(text) * MIN_FONT_MM > innerW + 1e-4;
+  const fittingDelimiters = delimiterSplits(text).filter((pair) =>
+    pairFitsInset(pair[0], pair[1], innerW)
+  );
+
+  let pool: Array<[string, string]> = [];
+  if (overflowsMin) {
+    pool = overflowWrapPool(text, innerW);
+  } else if (fittingDelimiters.length > 0) {
+    const split = chooseSplit(fittingDelimiters);
+    const single = legendFitMm(text, plate);
+    const doubled = legendFitMm(`${split[0]}\n${split[1]}`, plate);
+    const maxFill = singleLineHeightFill(plate);
+    if (
+      doubled > single + 1e-6 &&
+      single < SINGLE_LINE_MIN_FILL * maxFill
+    ) {
+      pool = fittingDelimiters;
+    }
   }
+
   if (pool.length === 0) return text;
   const [left, right] = chooseSplit(pool);
   return `${left}\n${right}`;
@@ -480,9 +557,10 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
   const text = wrapLegendToFit(object.text, plate);
   const { kW, kH, ascent } = textFactors(text);
   const inset = autoTextInset(plate);
-  const innerW = Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
-  const innerH = Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
-  const fit = Math.min(innerW / kW, innerH / kH);
+  const fit = Math.min(
+    legendInnerWidth(plate) / kW,
+    legendInnerHeight(plate) / kH
+  );
   const fontSize = clamp(
     floorMm(Number.isFinite(fit) ? fit : MIN_FONT_MM),
     MIN_FONT_MM,
@@ -504,8 +582,10 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
 
 /**
  * Production and nest engrave. A legend that already fits, including a manual
- * line break, keeps its saved anchor. A single line that spills past the inset
- * is wrapped and refitted the same way as the designer.
+ * line break, keeps its saved anchor. A single line that spills past the inset,
+ * or that would shrink below 20% of the plate's height fill, or a three-part
+ * code on a plate larger than 20×10, is wrapped and refitted
+ * the same way as the designer.
  */
 export function engraveLayout<
   T extends Pick<TextObject, "id" | "text" | "x" | "y" | "fontSize" | "align">,

@@ -545,4 +545,125 @@ assert.match(longPiece, /font-weight="400"/);
 assert.match(longPiece, /stroke="#FF0000"/);
 assert.match(longPiece, /fill="#000000"/);
 
+const wideLong = nestPlates([
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "ADMIN-AC4",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      { id: "text-1", text: "ADMIN-AC4", x: 20, y: 12.2, fontSize: 6.1, align: "center" },
+    ],
+  }),
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "ADMIN-AC7-THEATRE",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      {
+        id: "text-1",
+        text: "ADMIN-AC7-THEATRE",
+        x: 20,
+        y: 11.1,
+        fontSize: 3.2,
+        align: "center",
+      },
+    ],
+  }),
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "ADMIN-AC8-PARMELIA",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      {
+        id: "text-1",
+        text: "ADMIN-AC8-PARMELIA",
+        x: 20,
+        y: 11.1,
+        fontSize: 3.1,
+        align: "center",
+      },
+    ],
+  }),
+]);
+const wideSvg = serializeNestSheetSvg(1001, wideLong.sheets[0]);
+assert.equal(wideSvg.match(/<tspan /g)?.length, 5);
+assert.match(wideSvg, />ADMIN-AC4</);
+assert.match(
+  wideSvg,
+  /<tspan x="20" dy="0">ADMIN-AC7<\/tspan><tspan x="20" dy="[^"]+">THEATRE<\/tspan>/
+);
+assert.match(
+  wideSvg,
+  /<tspan x="20" dy="0">ADMIN-AC8<\/tspan><tspan x="20" dy="[^"]+">PARMELIA<\/tspan>/
+);
+assert.doesNotMatch(wideSvg, />ADMIN-AC7-THEATRE</);
+assert.doesNotMatch(wideSvg, />ADMIN-AC8-PARMELIA</);
+assert.match(wideSvg, /font-size="6.1"/);
+assert.equal(wideSvg.match(/font-size="6.1"/g)?.length, 3);
+
+const threePart = nestPlates([
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "RTP-AC2-OAK",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      { id: "text-1", text: "RTP-AC2-OAK", x: 20, y: 11.8, fontSize: 5, align: "center" },
+    ],
+  }),
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "CW-03-BOH",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      { id: "text-1", text: "CW-03-BOH", x: 20, y: 12.1, fontSize: 6, align: "center" },
+    ],
+  }),
+  plate({
+    widthMm: 40,
+    heightMm: 20,
+    qty: 1,
+    text: "CW-01-ER",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      { id: "text-1", text: "CW-01-ER", x: 20, y: 12.5, fontSize: 7, align: "center" },
+    ],
+  }),
+  plate({
+    widthMm: 20,
+    heightMm: 10,
+    qty: 1,
+    text: "CW-03-BOH",
+    colourPair: "white-black",
+    colourLabel: "White / black",
+    objects: [
+      { id: "text-1", text: "CW-03-BOH", x: 10, y: 6.1, fontSize: 3, align: "center" },
+    ],
+  }),
+]);
+const threeSvg = threePart.sheets
+  .map((sheet) => serializeNestSheetSvg(1001, sheet))
+  .join("\n");
+assert.match(threeSvg, /<tspan x="20" dy="0">RTP-AC2<\/tspan><tspan x="20" dy="[^"]+">OAK<\/tspan>/);
+assert.match(threeSvg, /<tspan x="20" dy="0">CW-03<\/tspan><tspan x="20" dy="[^"]+">BOH<\/tspan>/);
+assert.match(threeSvg, /<tspan x="20" dy="0">CW-01<\/tspan><tspan x="20" dy="[^"]+">ER<\/tspan>/);
+assert.match(threeSvg, /<tspan x="10" dy="0">CW-03-BOH<\/tspan>/);
+assert.doesNotMatch(threeSvg, />RTP-AC2-OAK</);
+assert.doesNotMatch(threeSvg, />CW-01-ER</);
+
 console.log("lib/sheet-nest.test.ts: ok");
