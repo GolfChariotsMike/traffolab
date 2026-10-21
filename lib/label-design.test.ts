@@ -593,10 +593,16 @@ function assertFills(
   assert.equal(wrapLegendToFit("ADMIN-AC4", plate), "ADMIN-AC4");
   assert.equal(wrapLegendToFit("ADMIN-AC10", plate), "ADMIN-AC10");
   assert.equal(wrapLegendToFit("ADMIN-AC12.1", plate), "ADMIN-AC12.1");
-  assert.equal(wrapLegendToFit("RTP-AC2-OAK", plate), "RTP-AC2-OAK");
-  assert.equal(wrapLegendToFit("CW-03-BOH", plate), "CW-03-BOH");
+  assert.equal(wrapLegendToFit("AC2-ER", plate), "AC2-ER");
+  assert.equal(wrapLegendToFit("RTP-AC2-OAK", plate), "RTP-AC2\nOAK");
+  assert.equal(wrapLegendToFit("CW-03-BOH", plate), "CW-03\nBOH");
+  assert.equal(wrapLegendToFit("CW-01-ER", plate), "CW-01\nER");
   assert.equal(wrapLegendToFit("ADMIN-AC7-THEATRE", plate), "ADMIN-AC7\nTHEATRE");
   assert.equal(wrapLegendToFit("ADMIN-AC8-PARMELIA", plate), "ADMIN-AC8\nPARMELIA");
+  const small = { widthMm: 20, heightMm: 10 };
+  assert.equal(wrapLegendToFit("CW-03-BOH", small), "CW-03-BOH");
+  assert.equal(wrapLegendToFit("CW-01-ER", small), "CW-01-ER");
+  assert.equal(wrapLegendToFit("RTP-AC2-OAK", small), "RTP-AC2\nOAK");
 
   const short = fitTextToPlate(
     legend({ text: "ADMIN-AC4", x: 20, y: 10, fontSize: MIN_FONT_MM, align: "center" }),
