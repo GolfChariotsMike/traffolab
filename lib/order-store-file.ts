@@ -8,10 +8,11 @@ import {
   type SavedOrder,
 } from "@/lib/orders";
 import {
-  APPROVAL_STATEMENT,
+  approvalStatement,
   newProofToken,
   platesApprovalHash,
   platesMatchProof,
+  proofPriceSummary,
   type ProofDecisionInput,
   type ProofRecord,
 } from "@/lib/proofs";
@@ -30,6 +31,15 @@ function normalizeOrder(order: SavedOrder): SavedOrder {
   return {
     ...order,
     paymentSource: order.paymentSource === "manual" ? "manual" : "stripe",
+  };
+}
+
+function normalizeProof(proof: ProofRecord): ProofRecord {
+  const total = proof.approvedTotalCents;
+  return {
+    ...proof,
+    approvedTotalCents:
+      typeof total === "number" && Number.isInteger(total) && total >= 0 ? total : null,
   };
 }
 
@@ -58,7 +68,9 @@ export function createFileOrderStore(filePath: string): OrderStore {
         orders: (Array.isArray(parsed.orders) ? parsed.orders : []).map((order) =>
           normalizeOrder(order as SavedOrder)
         ),
-        proofs: Array.isArray(parsed.proofs) ? (parsed.proofs as ProofRecord[]) : [],
+        proofs: Array.isArray(parsed.proofs)
+          ? (parsed.proofs as ProofRecord[]).map((proof) => normalizeProof(proof))
+          : [],
         nextNumber:
           typeof parsed.nextNumber === "number" && parsed.nextNumber >= 1001
             ? parsed.nextNumber
@@ -199,6 +211,7 @@ export function createFileOrderStore(filePath: string): OrderStore {
           approvedIp: "",
           approvedUserAgent: "",
           approvalStatement: "",
+          approvedTotalCents: null,
           changeComment: "",
           changeRequestedAt: null,
           changeIp: "",
@@ -259,7 +272,9 @@ export function createFileOrderStore(filePath: string): OrderStore {
           proof.approvedAt = new Date().toISOString();
           proof.approvedIp = decision.ip;
           proof.approvedUserAgent = decision.userAgent;
-          proof.approvalStatement = APPROVAL_STATEMENT;
+          const price = proofPriceSummary(proof.plates, order);
+          proof.approvalStatement = approvalStatement(price.totalIncGstCents);
+          proof.approvedTotalCents = price.totalIncGstCents;
           await write(db);
           return { ok: true as const, proof: clone(proof), changed: true };
         }

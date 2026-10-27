@@ -11,6 +11,7 @@ import {
   type ShippingAddress,
   type StoredPlate,
 } from "@/lib/orders";
+import { formatAud, SHIPPING_METHODS, type ShippingMethodId } from "@/lib/pricing";
 
 export const PROOF_STATUSES = [
   "pending",
@@ -20,8 +21,13 @@ export const PROOF_STATUSES = [
 ] as const;
 export type ProofStatus = (typeof PROOF_STATUSES)[number];
 
-export const APPROVAL_STATEMENT =
-  "I've checked the spelling, wording, sizes and quantities and approve this proof for production";
+/**
+ * Checkbox the customer ticks. The amount is the GST-inclusive total for this proof.
+ * Existing approvals keep whatever statement was stored with them.
+ */
+export function approvalStatement(totalIncGstCents: number) {
+  return `I've checked the spelling, wording, sizes and quantities, and approve this proof and the total price of ${formatAud(totalIncGstCents)} inc GST for production.`;
+}
 
 export const PROOF_TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
@@ -52,6 +58,8 @@ export type ProofRecord = {
   approvedIp: string;
   approvedUserAgent: string;
   approvalStatement: string;
+  /** GST-inclusive total in cents, stored when the customer approves. Null until then. */
+  approvedTotalCents: number | null;
   changeComment: string;
   changeRequestedAt: string | null;
   changeIp: string;
@@ -141,6 +149,113 @@ export function platesMatchProof(orderPlates: StoredPlate[], proof: Pick<ProofRe
     platesApprovalHash(orderPlates) === proof.platesHash &&
     platesApprovalHash(proof.plates) === proof.platesHash
   );
+}
+
+export type ProofPriceLine = {
+  widthMm: number;
+  heightMm: number;
+  qty: number;
+  unitCents: number;
+  lineCents: number;
+};
+
+export type ProofPriceSummary = {
+  lines: ProofPriceLine[];
+  platesCents: number;
+  shippingCents: number;
+  shippingLabel: string;
+  /** Plates plus shipping. This is the order's stored total when that total is present. */
+  exGstCents: number;
+  gstCents: number;
+  totalIncGstCents: number;
+  /** True when the plate lines plus shipping equal the stored order total. */
+  matchesOrderTotal: boolean;
+};
+
+/**
+ * Checkout and manual orders store GST-exclusive cents: plate unitCents × qty,
+ * plus shipping, with no tax added. TraffLabels is GST registered, so a proof
+ * shows 10% GST on that stored total. Prices are not part of the plate hash,
+ * so showing them does not supersede a proof that was already sent.
+ */
+export function gstOnExclusiveCents(exGstCents: number) {
+  if (!Number.isInteger(exGstCents) || exGstCents <= 0) return 0;
+  return Math.round(exGstCents / 10);
+}
+
+function wholeCents(value: unknown): number | null {
+  if (typeof value === "string" && /^-?\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  if (typeof value !== "number" || !Number.isInteger(value) || !Number.isSafeInteger(value)) {
+    return null;
+  }
+  return value;
+}
+
+export function postageLabel(shippingMethodId: ShippingMethodId) {
+  const method = SHIPPING_METHODS.find((item) => item.id === shippingMethodId);
+  return method ? `${method.label} postage` : "Postage";
+}
+
+export function proofPriceSummary(
+  plates: StoredPlate[],
+  order: Pick<SavedOrder, "shippingMethodId" | "shippingCents" | "subtotalCents" | "totalCents">
+): ProofPriceSummary {
+  const grouped = new Map<string, ProofPriceLine>();
+  for (const plate of plates) {
+    const unitCents = wholeCents(plate.unitCents) ?? 0;
+    const qty = wholeCents(plate.qty) ?? 0;
+    const key = `${plate.widthMm}\0${plate.heightMm}\0${unitCents}`;
+    const lineCents = unitCents * qty;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.qty += qty;
+      existing.lineCents += lineCents;
+    } else {
+      grouped.set(key, {
+        widthMm: plate.widthMm,
+        heightMm: plate.heightMm,
+        qty,
+        unitCents,
+        lineCents,
+      });
+    }
+  }
+  const lines = [...grouped.values()].sort((a, b) => {
+    const area = a.widthMm * a.heightMm - b.widthMm * b.heightMm;
+    if (area !== 0) return area;
+    if (a.widthMm !== b.widthMm) return a.widthMm - b.widthMm;
+    return a.unitCents - b.unitCents;
+  });
+  const platesCents = lines.reduce((sum, line) => sum + line.lineCents, 0);
+  const shippingCents = wholeCents(order.shippingCents) ?? 0;
+  const computedExGst = platesCents + shippingCents;
+  const storedTotal = wholeCents(order.totalCents);
+  const hasStoredTotal = storedTotal != null && storedTotal >= 0;
+  // The order total is the GST-exclusive amount checkout stored (plates + shipping).
+  // Use it as the GST base so the approved figure matches that record.
+  const exGstCents = hasStoredTotal ? storedTotal : computedExGst;
+  const gstCents = gstOnExclusiveCents(exGstCents);
+  return {
+    lines,
+    platesCents,
+    shippingCents,
+    shippingLabel: postageLabel(order.shippingMethodId),
+    exGstCents,
+    gstCents,
+    totalIncGstCents: exGstCents + gstCents,
+    matchesOrderTotal: !hasStoredTotal || storedTotal === computedExGst,
+  };
+}
+
+export function formatProofSizeLine(line: ProofPriceLine) {
+  return `${line.widthMm} × ${line.heightMm} mm × ${line.qty} @ ${formatAud(line.unitCents)} = ${formatAud(line.lineCents)}`;
+}
+
+export function formatProofShippingLine(summary: Pick<ProofPriceSummary, "shippingLabel" | "shippingCents">) {
+  return `${summary.shippingLabel} ${formatAud(summary.shippingCents)}`;
 }
 
 export function proofSummary(order: SavedOrder, proof: ProofRecord | null): ProofSummary {
@@ -272,6 +387,7 @@ export function proofNotificationCopy(input: {
   proofUrl: string;
   ip: string;
   userAgent: string;
+  totalIncGstCents?: number | null;
 }) {
   const when = formatPerthDateTime(input.at);
   const who = input.customerName || "Customer";
@@ -283,10 +399,15 @@ export function proofNotificationCopy(input: {
     input.kind === "approved"
       ? `${input.actorName} approved the proof for ${who} (order #${input.orderNumber}) on ${when} (Perth).`
       : `${who} requested changes on the proof for order #${input.orderNumber} on ${when} (Perth).`;
+  const approvedTotal =
+    input.kind === "approved" && input.totalIncGstCents != null
+      ? `Approved total: ${formatAud(input.totalIncGstCents)} inc GST`
+      : "";
   const lines = [
     lead,
     "",
     input.kind === "changes" ? `Comment: ${input.comment}` : `Approved name: ${input.actorName}`,
+    ...(approvedTotal ? [approvedTotal] : []),
     "",
     `Proof: ${input.proofUrl}`,
     `IP: ${input.ip || "(not recorded)"}`,
@@ -300,7 +421,9 @@ export function proofNotificationCopy(input: {
 ${
   input.kind === "changes"
     ? `<p style="white-space:pre-wrap;">${escapeHtml(input.comment)}</p>`
-    : `<p>Approved name: ${escapeHtml(input.actorName)}</p>`
+    : `<p>Approved name: ${escapeHtml(input.actorName)}</p>${
+        approvedTotal ? `<p>${escapeHtml(approvedTotal)}</p>` : ""
+      }`
 }
 <p><a href="${escapeHtml(input.proofUrl)}">Open the proof</a></p>
 <p style="color:#64748b;font-size:13px;">IP: ${escapeHtml(input.ip || "(not recorded)")}<br>Browser: ${escapeHtml(input.userAgent || "(not recorded)")}</p>

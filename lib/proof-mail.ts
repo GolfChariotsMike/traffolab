@@ -39,6 +39,7 @@ export async function sendProofNotification(input: {
     ip: kind === "approved" ? input.proof.approvedIp : input.proof.changeIp,
     userAgent:
       kind === "approved" ? input.proof.approvedUserAgent : input.proof.changeUserAgent,
+    totalIncGstCents: input.proof.approvedTotalCents,
   });
 
   if (process.env.NODE_ENV !== "production") {

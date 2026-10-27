@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { ProofDecision } from "@/components/proof/proof-decision";
+import { ProofPrice } from "@/components/proof/proof-price";
 import { proofPlateSvg } from "@/lib/proof-plate";
 import { getOrderStore } from "@/lib/order-store";
 import { formatPerthDateTime, orderItemCount, type StoredPlate } from "@/lib/orders";
 import {
+  approvalStatement,
   cleanInvoiceUrl,
   groupPlates,
   isProofToken,
   proofAddressLines,
+  proofPriceSummary,
   type ProofRecord,
 } from "@/lib/proofs";
 import { productName } from "@/lib/site";
@@ -94,7 +97,8 @@ export default async function ProofPage({
   }
   if (!opened) notFound();
 
-  const { proof } = opened;
+  const { proof, order } = opened;
+  const price = proofPriceSummary(proof.plates, order);
   const groups = groupPlates(proof.plates);
   const showGroups = groups.some((group) => group.location);
   const totalQty = orderItemCount(proof.plates);
@@ -179,9 +183,16 @@ export default async function ProofPage({
           </p>
         </section>
 
+        <ProofPrice summary={price} />
+
         <section className="flex flex-col gap-4">
           {banner}
-          {proof.status === "pending" ? <ProofDecision token={proof.token} /> : null}
+          {proof.status === "pending" ? (
+            <ProofDecision
+              token={proof.token}
+              statement={approvalStatement(price.totalIncGstCents)}
+            />
+          ) : null}
         </section>
       </article>
     </div>
