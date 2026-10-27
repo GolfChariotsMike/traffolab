@@ -35,6 +35,8 @@ export type StoredPlate = {
   adhesive3m: boolean;
   text: string;
   objects: PlateObject[];
+  /** Optional switchboard or site group, set in the admin before a proof is sent. */
+  location?: string;
 };
 
 export type CheckoutDraft = {
@@ -100,7 +102,45 @@ export type OrderPatch = {
   status?: OrderStatus;
   note?: string;
   trackingLink?: string;
+  /** One trimmed location per plate, in plate order. */
+  plateLocations?: string[];
 };
+
+export class OrderUpdateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrderUpdateError";
+  }
+}
+
+const LOCATION_MAX = 80;
+
+export function cleanPlateLocation(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const location = value.replace(/\s+/g, " ").trim();
+  if (location.length > LOCATION_MAX) return null;
+  return location;
+}
+
+export function parsePlateLocations(
+  value: unknown
+): { ok: true; locations: string[] } | { ok: false; error: string } {
+  if (!Array.isArray(value)) {
+    return { ok: false, error: "Locations must be a list." };
+  }
+  if (value.length > 500) {
+    return { ok: false, error: "Too many locations." };
+  }
+  const locations: string[] = [];
+  for (const item of value) {
+    const location = cleanPlateLocation(item);
+    if (location === null) {
+      return { ok: false, error: "Each location must be 80 characters or fewer." };
+    }
+    locations.push(location);
+  }
+  return { ok: true, locations };
+}
 
 const NOTE_MAX = 4000;
 const TRACKING_MAX = 500;
@@ -176,6 +216,21 @@ export function formatOrderDate(iso: string) {
   }).format(date);
 }
 
+/** Date and time in Perth, for a customer approval line. */
+export function formatPerthDateTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Australia/Perth",
+    hourCycle: "h12",
+  }).format(date);
+}
+
 export function stripeDashboardPaymentUrl(
   livemode: boolean,
   paymentIntentId: string | null
@@ -244,10 +299,17 @@ export function parseOrderPatch(
     patch.trackingLink = trackingLink;
   }
 
+  if ("plateLocations" in raw) {
+    const locations = parsePlateLocations(raw.plateLocations);
+    if (!locations.ok) return locations;
+    patch.plateLocations = locations.locations;
+  }
+
   if (
     patch.status === undefined &&
     patch.note === undefined &&
-    patch.trackingLink === undefined
+    patch.trackingLink === undefined &&
+    patch.plateLocations === undefined
   ) {
     return { ok: false, error: "Nothing to update." };
   }
@@ -259,12 +321,19 @@ export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new 
   const status = patch.status
     ? transitionStatus(order.status, patch.status) ?? order.status
     : order.status;
+  const plates = patch.plateLocations
+    ? order.plates.map((plate, index) => ({
+        ...plate,
+        location: patch.plateLocations?.[index] ?? "",
+      }))
+    : order.plates;
   return {
     ...order,
     status,
     note: patch.note !== undefined ? patch.note : order.note,
     trackingLink:
       patch.trackingLink !== undefined ? patch.trackingLink : order.trackingLink,
+    plates,
     updatedAt: now.toISOString(),
   };
 }

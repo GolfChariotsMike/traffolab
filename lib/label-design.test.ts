@@ -56,6 +56,21 @@ function legend(
   return { id: "text-1", type: "text", ...patch };
 }
 
+/** Wrapped lines rebuild the original by putting back a space or hyphen at each break. */
+function rejoinsAtBreaks(original: string, wrapped: string) {
+  const lines = wrapped.split("\n");
+  let rest = original;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!rest.startsWith(lines[index])) return false;
+    rest = rest.slice(lines[index].length);
+    if (index === lines.length - 1) return rest === "";
+    if (rest.startsWith(" ")) rest = rest.slice(1);
+    else if (rest.startsWith("-")) rest = rest.slice(1);
+    else return false;
+  }
+  return false;
+}
+
 function assertFills(
   object: TextObject,
   plate: { widthMm: number; heightMm: number },
@@ -136,8 +151,10 @@ function assertFills(
         assert.ok(svg.includes(`>${line}<`), `${preset.id} ${text} missing ${line}`);
       }
       if (laidOut.includes("\n")) {
-        assert.equal(laidOut.split("\n").length, 2);
+        const lineCount = laidOut.split("\n").length;
+        assert.ok(lineCount === 2 || lineCount === 3, `${preset.id} ${text} lines ${lineCount}`);
         assert.equal(fitted.text, text);
+        assert.equal(rejoinsAtBreaks(text, laidOut), true, `${preset.id} ${text} ${laidOut}`);
         assert.ok(
           fittedBox.width <= preset.widthMm + 0.06,
           `${preset.id} ${text} wrapped width ${fittedBox.width}`
@@ -222,11 +239,16 @@ function assertFills(
     plate
   );
   assert.equal(wide.text, "DISTRIBUTION BOARD");
+  const wideWrap = wrapLegendToFit(wide.text, plate);
+  assert.equal(wideWrap, "DISTRIBUTION\nBOARD");
+  assert.equal(rejoinsAtBreaks(wide.text, wideWrap), true);
   const wideBox = textMetrics(wide, plate);
-  assert.equal(wrapLegendToFit(wide.text, plate).split("\n").length, 2);
-  assert.ok(wideBox.width <= plate.widthMm + 0.06, `wrapped width ${wideBox.width}`);
-  assert.ok(wideBox.left >= -0.06, `wrapped left ${wideBox.left}`);
-  assert.ok(wideBox.left + wideBox.width <= plate.widthMm + 0.06);
+  // DISTRIBUTION at 3 mm is wider than this plate. Stay on the word boundary,
+  // pin the left edge, and let the word hang past the cut rather than split it.
+  assert.equal(wide.fontSize, MIN_FONT_MM);
+  assert.ok(wideBox.width > plate.widthMm, `wrapped width ${wideBox.width}`);
+  assert.ok(Math.abs(wideBox.left) < 0.06, `wrapped left ${wideBox.left}`);
+  assert.ok(wideBox.left + wideBox.width > plate.widthMm);
 
   const overflow = clampObjectToPlate(
     legend({
@@ -553,16 +575,14 @@ function assertFills(
   assertInside(parmelia, plate, "ADMIN-AC8-PARMELIA");
 
   const token = wrapLegendToFit("WWWWWWWWWW", plate);
-  const [tokenLeft, tokenRight] = token.split("\n");
-  assert.equal(token.split("\n").length, 2);
-  assert.equal(`${tokenLeft}${tokenRight}`, "WWWWWWWWWW");
+  assert.equal(token, "WWWWWWWWWW");
   const tokenFit = fitTextToPlate(
     legend({ text: "WWWWWWWWWW", x: 10, y: 5, fontSize: MIN_FONT_MM, align: "center" }),
     plate
   );
-  assertInside(tokenFit, plate, "mid-token");
   assert.equal(tokenFit.text, "WWWWWWWWWW");
-  assert.ok(textMetrics(tokenFit, plate).width <= plate.widthMm + 0.06);
+  assert.equal(tokenFit.fontSize, MIN_FONT_MM);
+  assert.ok(textMetrics(tokenFit, plate).width > plate.widthMm);
 
   const stored = engraveLayout(
     legend({
@@ -585,6 +605,49 @@ function assertFills(
   assert.equal(already.x, theatre.x);
   assert.equal(already.y, theatre.y);
   assert.equal(already.text, stored.text);
+}
+
+{
+  // 40×20, inset 3 mm each side (inner width 34 mm). The best two-line
+  // word split, "DB 12 AND" / "GENERATOR LIGHTING", is 34.005 mm at the
+  // 3 mm minimum, so it used to miss the inset check and cut GENERATOR.
+  const plate = { widthMm: 40, heightMm: 20 };
+  const text = "DB 12 AND GENERATOR LIGHTING";
+  const wrapped = wrapLegendToFit(text, plate);
+  assert.equal(wrapped, "DB 12 AND\nGENERATOR\nLIGHTING");
+  assert.equal(rejoinsAtBreaks(text, wrapped), true);
+  for (const line of wrapped.split("\n")) {
+    assert.ok(!line.startsWith("RATOR"), line);
+    assert.ok(!line.endsWith("GENE"), line);
+  }
+  const fitted = fitTextToPlate(
+    legend({ text, x: 20, y: 10, fontSize: MIN_FONT_MM, align: "center" }),
+    plate
+  );
+  assert.equal(fitted.text, text);
+  assert.ok(fitted.fontSize > MIN_FONT_MM, `font ${fitted.fontSize}`);
+  assertInside(fitted, plate, "generator lighting");
+  const laid = engraveLayout(
+    legend({ text, x: 20, y: 10, fontSize: 8, align: "center" }),
+    plate
+  );
+  assert.equal(laid.text, wrapped);
+  assert.equal(laid.fontSize, fitted.fontSize);
+
+  const unbroken = "MMMMMMMMMM MMMMMMMMMM MMMMMMMMMM MMMMMMMMMM";
+  const tiny = { widthMm: 20, heightMm: 10 };
+  const tinyWrap = wrapLegendToFit(unbroken, tiny);
+  assert.equal(rejoinsAtBreaks(unbroken, tinyWrap), true);
+  assert.ok(tinyWrap.split("\n").length >= 2);
+  for (const line of tinyWrap.split("\n")) {
+    assert.match(line, /^(?:MMMMMMMMMM)(?: MMMMMMMMMM)*$/);
+  }
+  const tinyFit = fitTextToPlate(
+    legend({ text: unbroken, x: 10, y: 5, fontSize: 8, align: "center" }),
+    tiny
+  );
+  assert.equal(tinyFit.fontSize, MIN_FONT_MM);
+  assert.equal(tinyFit.text, unbroken);
 }
 
 console.log("label-design tests passed");

@@ -4,6 +4,13 @@ import { OrdersBoard } from "@/components/admin/orders-board";
 import { ORDERS_COOKIE, dashboardConfigured, readOrdersSession } from "@/lib/admin-auth";
 import { resendConfigured } from "@/lib/admin-mail";
 import { getOrderStore } from "@/lib/order-store";
+import {
+  EMPTY_PROOF_SUMMARY,
+  proofSummary,
+  ProofSchemaError,
+  PROOF_MIGRATION_HINT,
+  type ProofSummary,
+} from "@/lib/proofs";
 
 export const dynamic = "force-dynamic";
 
@@ -135,12 +142,33 @@ export default async function AdminOrdersPage({
   const store = getOrderStore();
   let orders: Awaited<ReturnType<NonNullable<typeof store>["listOrders"]>> = [];
   let storeError: string | null = null;
+  let proofNotice: string | null = null;
+  const proofs: Record<string, ProofSummary> = {};
   if (!store) {
     storeError =
       "Orders database is not configured. Set DATABASE_URL (or POSTGRES_URL) for this deployment.";
   } else {
     try {
       orders = await store.listOrders();
+      try {
+        const latest = await store.listLatestProofs();
+        const byOrderId = new Map(latest.map((proof) => [proof.orderId, proof]));
+        for (const order of orders) {
+          proofs[String(order.orderNumber)] = proofSummary(
+            order,
+            byOrderId.get(order.id) ?? null
+          );
+        }
+      } catch (proofError) {
+        if (proofError instanceof ProofSchemaError) {
+          proofNotice = PROOF_MIGRATION_HINT;
+          for (const order of orders) {
+            proofs[String(order.orderNumber)] = { ...EMPTY_PROOF_SUMMARY };
+          }
+        } else {
+          throw proofError;
+        }
+      }
     } catch (loadError) {
       console.error("[admin] could not list orders", loadError);
       storeError = "Could not load orders from the database.";
@@ -149,7 +177,13 @@ export default async function AdminOrdersPage({
 
   return (
     <main>
-      <OrdersBoard initialOrders={orders} storeError={storeError} signedInEmail={session.email} />
+      <OrdersBoard
+        initialOrders={orders}
+        initialProofs={proofs}
+        storeError={storeError}
+        proofNotice={proofNotice}
+        signedInEmail={session.email}
+      />
     </main>
   );
 }

@@ -8,9 +8,14 @@ import { SiteHeader } from "@/components/site-header";
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const studio = pathname.startsWith("/admin");
+  const proof = pathname.startsWith("/proof");
 
   if (studio) {
     return <div className="min-h-full bg-[#0c0d10] text-paper">{children}</div>;
+  }
+
+  if (proof) {
+    return <div className="min-h-full bg-background text-foreground">{children}</div>;
   }
 
   return (

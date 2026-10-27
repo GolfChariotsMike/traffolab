@@ -386,90 +386,113 @@ function legendInnerWidth(plate: PlateSize) {
   return Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
 }
 
-function splitScore(left: string, right: string) {
-  const leftW = lineEmWidth(left);
-  const rightW = lineEmWidth(right);
-  return {
-    leftW,
-    rightW,
-    maxW: Math.max(leftW, rightW),
-    balance: Math.abs(leftW - rightW),
-  };
+function legendInnerHeight(plate: PlateSize) {
+  const inset = autoTextInset(plate);
+  return Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
 }
 
-function pairFitsInset(left: string, right: string, innerW: number) {
-  return splitScore(left, right).maxW * MIN_FONT_MM <= innerW + 1e-4;
+function arrangementScore(lines: string[]) {
+  const widths = lines.map(lineEmWidth);
+  const maxW = Math.max(...widths);
+  const minW = Math.min(...widths);
+  return { maxW, balance: maxW - minW };
 }
 
-/** Smaller max line, then the more even pair. */
-function preferSplit(current: [string, string], candidate: [string, string]) {
-  const next = splitScore(candidate[0], candidate[1]);
-  const best = splitScore(current[0], current[1]);
+/** Smaller longest line, then the more even set. */
+function preferLines(current: string[], candidate: string[]) {
+  const next = arrangementScore(candidate);
+  const best = arrangementScore(current);
   if (next.maxW < best.maxW - 1e-6) return candidate;
   if (best.maxW < next.maxW - 1e-6) return current;
   if (next.balance < best.balance - 1e-6) return candidate;
   return current;
 }
 
-function chooseSplit(pairs: Array<[string, string]>) {
-  return pairs.reduce((best, pair) => preferSplit(best, pair));
-}
-
-/** Breaks on a space or hyphen. The break character is not kept on either line. */
-function delimiterSplits(text: string): Array<[string, string]> {
-  const pairs: Array<[string, string]> = [];
+/** Indexes of spaces and hyphens. The break character is not kept on either line. */
+function delimiterIndexes(text: string) {
+  const indexes: number[] = [];
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
-    if (char !== " " && char !== "-") continue;
-    const left = text.slice(0, index).trim();
-    const right = text.slice(index + 1).trim();
-    if (!left || !right) continue;
-    pairs.push([left, right]);
+    if (char === " " || char === "-") indexes.push(index);
   }
-  return pairs;
+  return indexes;
 }
 
-/** Cut inside a token when a hyphen or space cannot keep both lines in the inset. */
-function midTokenSplits(text: string): Array<[string, string]> {
-  const pairs: Array<[string, string]> = [];
-  for (let index = 1; index < text.length; index += 1) {
-    const before = text[index - 1];
-    const char = text[index];
-    if (before === " " || before === "-" || char === " " || char === "-") continue;
-    pairs.push([text.slice(0, index), text.slice(index)]);
+function linesAtBreaks(text: string, breaks: number[]): string[] | null {
+  const parts: string[] = [];
+  let start = 0;
+  for (const index of breaks) {
+    const piece = text.slice(start, index).trim();
+    if (!piece) return null;
+    parts.push(piece);
+    start = index + 1;
   }
-  return pairs;
+  const tail = text.slice(start).trim();
+  if (!tail) return null;
+  parts.push(tail);
+  return parts;
+}
+
+function arrangements(text: string, lineCount: 2 | 3) {
+  const points = delimiterIndexes(text);
+  const found: string[][] = [];
+  if (lineCount === 2) {
+    for (const index of points) {
+      const lines = linesAtBreaks(text, [index]);
+      if (lines) found.push(lines);
+    }
+    return found;
+  }
+  for (let first = 0; first < points.length; first += 1) {
+    for (let second = first + 1; second < points.length; second += 1) {
+      const lines = linesAtBreaks(text, [points[first], points[second]]);
+      if (lines) found.push(lines);
+    }
+  }
+  return found;
+}
+
+function linesFitInset(lines: string[], plate: PlateSize) {
+  const { maxW } = arrangementScore(lines);
+  if (maxW * MIN_FONT_MM > legendInnerWidth(plate) + 1e-4) return false;
+  const { kH } = textFactors(lines.join("\n"));
+  return kH * MIN_FONT_MM <= legendInnerHeight(plate) + 1e-4;
+}
+
+function narrowest(options: string[][], plate: PlateSize) {
+  const fittingHeight = options.filter((lines) => {
+    const { kH } = textFactors(lines.join("\n"));
+    return kH * MIN_FONT_MM <= legendInnerHeight(plate) + 1e-4;
+  });
+  const pool = fittingHeight.length > 0 ? fittingHeight : options;
+  return pool.reduce((best, lines) => preferLines(best, lines));
 }
 
 /**
- * Two lines when one line cannot sit inside the plate inset at {@link MIN_FONT_MM}.
- * A newline already in the legend is a manual break and stays as typed.
+ * Wrap on a space or hyphen when one line cannot sit inside the plate inset
+ * at {@link MIN_FONT_MM}. Never cuts a word. A two-line break is preferred;
+ * a third line is used when every two-line break is still wider than the inset
+ * (a two-line split can miss by a fraction of a millimetre and must not fall
+ * through to a mid-word cut). If no word-boundary wrap fits, the narrowest
+ * two- or three-line break is kept and fitting clamps to the minimum font.
+ * A legend with no space or hyphen stays one line. A newline already in the
+ * legend is a manual break and stays as typed.
  * Example: `ADMIN-AC7-THEATRE` on a 20×10 becomes `ADMIN-AC7` / `THEATRE`.
  */
 export function wrapLegendToFit(text: string, plate: PlateSize): string {
   if (text.includes("\n") || text.trim().length === 0) return text;
-  const innerW = legendInnerWidth(plate);
-  if (lineEmWidth(text) * MIN_FONT_MM <= innerW + 1e-4) return text;
+  if (lineEmWidth(text) * MIN_FONT_MM <= legendInnerWidth(plate) + 1e-4) return text;
 
-  const delimiters = delimiterSplits(text);
-  const fittingDelimiters = delimiters.filter((pair) =>
-    pairFitsInset(pair[0], pair[1], innerW)
-  );
-  let pool = fittingDelimiters;
-  if (pool.length === 0) {
-    const fittingMids = midTokenSplits(text).filter((pair) =>
-      pairFitsInset(pair[0], pair[1], innerW)
-    );
-    pool =
-      fittingMids.length > 0
-        ? fittingMids
-        : delimiters.length > 0
-          ? delimiters
-          : midTokenSplits(text);
+  for (const count of [2, 3] as const) {
+    const fitting = arrangements(text, count).filter((lines) => linesFitInset(lines, plate));
+    if (fitting.length > 0) {
+      return fitting.reduce((best, lines) => preferLines(best, lines)).join("\n");
+    }
   }
-  if (pool.length === 0) return text;
-  const [left, right] = chooseSplit(pool);
-  return `${left}\n${right}`;
+
+  const fallback = [...arrangements(text, 2), ...arrangements(text, 3)];
+  if (fallback.length === 0) return text;
+  return narrowest(fallback, plate).join("\n");
 }
 
 /**

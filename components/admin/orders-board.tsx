@@ -10,6 +10,7 @@ import {
   ORDER_STATUSES,
   countryLabel,
   formatOrderDate,
+  formatPerthDateTime,
   formatPostage,
   orderItemCount,
   paymentSourceLabel,
@@ -17,6 +18,12 @@ import {
   type OrderStatus,
   type SavedOrder,
 } from "@/lib/orders";
+import {
+  EMPTY_PROOF_SUMMARY,
+  proofPath,
+  proofStatusText,
+  type ProofSummary,
+} from "@/lib/proofs";
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
 import { productionDownloadKind } from "@/lib/production-svg";
 import { cn } from "@/lib/utils";
@@ -37,27 +44,54 @@ function faceColour(colourPair: string) {
   return "#2a323c";
 }
 
+function proofColumnLabel(summary: ProofSummary | undefined) {
+  switch (summary?.state) {
+    case "awaiting":
+      return "Awaiting";
+    case "approved":
+      return "Approved";
+    case "changes_requested":
+      return "Changes";
+    case "superseded":
+      return "Superseded";
+    default:
+      return "Not sent";
+  }
+}
+
 export function OrdersBoard({
   initialOrders,
+  initialProofs,
   storeError,
+  proofNotice,
   signedInEmail,
 }: {
   initialOrders: SavedOrder[];
+  initialProofs: Record<string, ProofSummary>;
   storeError: string | null;
+  proofNotice: string | null;
   signedInEmail?: string;
 }) {
   const router = useRouter();
   const [orders, setOrders] = useState(initialOrders);
+  const [proofs, setProofs] = useState(initialProofs);
   const [filter, setFilter] = useState<OrderStatus | "ALL">("ALL");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [status, setStatus] = useState<OrderStatus>("NEW");
   const [note, setNote] = useState("");
   const [trackingLink, setTrackingLink] = useState("");
+  const [locations, setLocations] = useState<string[]>([]);
+  const [invoiceUrl, setInvoiceUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [creatingProof, setCreatingProof] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [proofMessage, setProofMessage] = useState<string | null>(null);
+  const [copiedProof, setCopiedProof] = useState(false);
+  const [origin, setOrigin] = useState("");
 
   const visible = useMemo(
     () => (filter === "ALL" ? orders : orders.filter((order) => order.status === filter)),
@@ -70,9 +104,15 @@ export function OrdersBoard({
     setStatus(order.status);
     setNote(order.note);
     setTrackingLink(order.trackingLink);
+    setLocations(order.plates.map((plate) => plate.location ?? ""));
+    setInvoiceUrl("");
     setSaveError(null);
     setSaved(false);
     setCopied(false);
+    setProofError(null);
+    setProofMessage(null);
+    setCopiedProof(false);
+    setOrigin(window.location.origin);
   }
 
   function closeOrder() {
@@ -104,23 +144,32 @@ export function OrdersBoard({
       const response = await fetch(`/api/admin/orders/${selected.orderNumber}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, note, trackingLink }),
+        body: JSON.stringify({ status, note, trackingLink, plateLocations: locations }),
       });
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
         error?: string;
         order?: SavedOrder;
+        proof?: ProofSummary | null;
       } | null;
       if (!response.ok || !payload?.ok || !payload.order) {
         setSaveError(payload?.error || "Could not update the order.");
         setSaving(false);
         return;
       }
+      const savedOrder = payload.order;
       setOrders((current) =>
         current.map((order) =>
-          order.orderNumber === payload.order!.orderNumber ? payload.order! : order
+          order.orderNumber === savedOrder.orderNumber ? savedOrder : order
         )
       );
+      setLocations(savedOrder.plates.map((plate) => plate.location ?? ""));
+      if (payload.proof) {
+        setProofs((current) => ({
+          ...current,
+          [String(savedOrder.orderNumber)]: payload.proof!,
+        }));
+      }
       setSaved(true);
       setSaving(false);
       router.refresh();
@@ -130,9 +179,70 @@ export function OrdersBoard({
     }
   }
 
+  async function createProof() {
+    if (!selected) return;
+    setCreatingProof(true);
+    setProofError(null);
+    setProofMessage(null);
+    setCopiedProof(false);
+    try {
+      const response = await fetch(`/api/admin/orders/${selected.orderNumber}/proof/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceUrl, plateLocations: locations }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        order?: SavedOrder;
+        proof?: ProofSummary;
+      } | null;
+      if (!response.ok || !payload?.ok || !payload.order || !payload.proof) {
+        setProofError(payload?.error || "Could not create the proof.");
+        setCreatingProof(false);
+        return;
+      }
+      const savedOrder = payload.order;
+      setOrders((current) =>
+        current.map((order) =>
+          order.orderNumber === savedOrder.orderNumber ? savedOrder : order
+        )
+      );
+      setLocations(savedOrder.plates.map((plate) => plate.location ?? ""));
+      setProofs((current) => ({
+        ...current,
+        [String(savedOrder.orderNumber)]: payload.proof!,
+      }));
+      setInvoiceUrl("");
+      setProofMessage("Proof link ready. Copy it and send it yourself.");
+      setCreatingProof(false);
+      router.refresh();
+    } catch {
+      setProofError("Could not create the proof.");
+      setCreatingProof(false);
+    }
+  }
+
+  async function copyProofLink(token: string) {
+    const url = `${window.location.origin}${proofPath(token)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedProof(true);
+    } catch {
+      setCopiedProof(false);
+    }
+  }
+
   const paymentUrl = selected
     ? stripeDashboardPaymentUrl(selected.stripeLivemode, selected.stripePaymentIntentId)
     : null;
+  const selectedProof = selected
+    ? proofs[String(selected.orderNumber)] ?? EMPTY_PROOF_SUMMARY
+    : EMPTY_PROOF_SUMMARY;
+  const proofLink =
+    origin && selectedProof.token && selectedProof.state !== "superseded" && selectedProof.state !== "not_sent"
+      ? `${origin}${proofPath(selectedProof.token)}`
+      : "";
 
   return (
     <div
@@ -199,14 +309,20 @@ export function OrdersBoard({
             {storeError}
           </p>
         ) : null}
+        {proofNotice ? (
+          <p role="status" className="border border-[#fee100]/40 bg-black/50 px-4 py-3 text-sm">
+            {proofNotice}
+          </p>
+        ) : null}
 
         <div className="overflow-hidden rounded-xl border border-white/10 bg-black/55 shadow-2xl">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
               <thead className="text-[11px] tracking-wide text-white/45 uppercase">
                 <tr className="border-b border-white/10">
                   <th className="px-4 py-3 font-medium">Order #</th>
                   <th className="px-3 py-3 font-medium">Status</th>
+                  <th className="px-3 py-3 font-medium">Proof</th>
                   <th className="px-3 py-3 font-medium">Payment</th>
                   <th className="px-3 py-3 font-medium">Customer</th>
                   <th className="px-3 py-3 font-medium">Items</th>
@@ -219,7 +335,7 @@ export function OrdersBoard({
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-10 text-sm text-white/55">
+                    <td colSpan={10} className="px-4 py-10 text-sm text-white/55">
                       {orders.length === 0
                         ? "No orders yet. A Stripe payment or an order you add appears here as NEW."
                         : "No orders in this status."}
@@ -244,6 +360,9 @@ export function OrdersBoard({
                           >
                             {order.status}
                           </span>
+                        </td>
+                        <td className="px-3 py-3 text-xs text-white/70">
+                          {proofColumnLabel(proofs[String(order.orderNumber)])}
                         </td>
                         <td className="px-3 py-3">
                           <span
@@ -313,7 +432,7 @@ export function OrdersBoard({
             role="dialog"
             aria-modal="true"
             aria-labelledby="order-dialog-title"
-            className="w-full max-w-md rounded-xl border border-white/10 bg-[#0e0e10] p-5 text-paper shadow-2xl"
+            className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0e0e10] p-5 text-paper shadow-2xl"
           >
             <div className="flex items-start justify-between gap-3">
               <h2 id="order-dialog-title" className="font-heading text-lg font-semibold">
@@ -388,6 +507,77 @@ export function OrdersBoard({
               </Button>
             </section>
 
+            <section className="mt-5 border border-white/10 p-3">
+              <h3 className="text-sm font-semibold">Proof</h3>
+              <p className="mt-2 text-sm whitespace-pre-wrap">{proofStatusText(selectedProof)}</p>
+              {selectedProof.state === "awaiting" && selectedProof.createdAt ? (
+                <p className="mt-1 text-xs text-white/45">
+                  Link created {formatPerthDateTime(selectedProof.createdAt)}
+                </p>
+              ) : null}
+              {proofLink ? (
+                <label className="mt-3 flex flex-col gap-1.5 text-xs text-white/55">
+                  Customer link
+                  <input
+                    readOnly
+                    value={proofLink}
+                    onFocus={(event) => event.currentTarget.select()}
+                    className="h-9 rounded-lg border border-white/15 bg-black px-2 font-mono text-[11px] text-paper"
+                  />
+                </label>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedProof.token && selectedProof.state !== "not_sent" && selectedProof.state !== "superseded" ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-white/15 bg-transparent text-paper hover:bg-white/10"
+                    onClick={() => copyProofLink(selectedProof.token!)}
+                  >
+                    <Copy />
+                    {copiedProof ? "Copied" : "Copy link"}
+                  </Button>
+                ) : null}
+              </div>
+              <label className="mt-3 flex flex-col gap-1.5 text-sm">
+                Stripe invoice URL
+                <input
+                  value={invoiceUrl}
+                  onChange={(event) => setInvoiceUrl(event.target.value)}
+                  placeholder="https://invoice.stripe.com/…"
+                  className="h-10 rounded-lg border border-white/15 bg-black px-3"
+                />
+              </label>
+              <p className="mt-2 text-xs text-white/40">
+                {selectedProof.state === "not_sent" || selectedProof.state === "superseded"
+                  ? "Creates a link you can send. Customers are not emailed."
+                  : "A new link replaces the current one. The previous link can no longer be approved."}
+              </p>
+              {proofError ? (
+                <p role="alert" className="mt-2 text-sm text-red-300">
+                  {proofError}
+                </p>
+              ) : null}
+              {proofMessage ? (
+                <p role="status" className="mt-2 text-sm text-[#3ddc97]">
+                  {proofMessage}
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                className="mt-3 bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
+                disabled={creatingProof || Boolean(proofNotice)}
+                onClick={createProof}
+              >
+                {creatingProof
+                  ? "Creating…"
+                  : selectedProof.state === "not_sent" || selectedProof.state === "superseded"
+                    ? "Create proof link"
+                    : "Create a new proof link"}
+              </Button>
+            </section>
+
             <section className="mt-5">
               <h3 className="text-sm font-semibold">
                 Items ({orderItemCount(selected.plates)})
@@ -400,7 +590,7 @@ export function OrdersBoard({
                       className="mt-0.5 size-8 shrink-0 border border-white/20"
                       style={{ backgroundColor: faceColour(plate.colourPair) }}
                     />
-                    <span className="min-w-0">
+                    <span className="min-w-0 flex-1">
                       <span className="block font-medium">
                         {plate.text.split("\n")[0] || "Untitled plate"}
                       </span>
@@ -409,6 +599,24 @@ export function OrdersBoard({
                         {plate.adhesive3m ? " · 3M adhesive" : ""} · qty {plate.qty} ·{" "}
                         {formatAud(plate.unitCents)} each · {formatAud(plate.lineCents)}
                       </span>
+                      <label className="mt-2 flex flex-col gap-1 text-xs text-white/55">
+                        Location
+                        <input
+                          value={locations[index] ?? ""}
+                          onChange={(event) => {
+                            const next = selected.plates.map((_, plateIndex) =>
+                              plateIndex === index
+                                ? event.target.value
+                                : locations[plateIndex] ?? ""
+                            );
+                            setLocations(next);
+                            setSaved(false);
+                          }}
+                          placeholder="e.g. DB room"
+                          maxLength={80}
+                          className="h-8 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
+                        />
+                      </label>
                     </span>
                   </li>
                 ))}
