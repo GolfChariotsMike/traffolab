@@ -192,7 +192,7 @@ assert.equal(approved.proof.approvedUserAgent, "TestBrowser");
 assert.equal(approved.proof.approvalStatement, APPROVAL_STATEMENT);
 assert.ok(approved.proof.approvedAt);
 assert.equal(proofSummary(saved, approved.proof).state, "approved");
-assert.match(proofStatusText(proofSummary(saved, approved.proof)), /Approved by Alex Nguyen at /);
+assert.match(proofStatusText(proofSummary(saved, approved.proof)), /Approved by Alex Nguyen on /);
 
 const again = await store.decideProof(created.token, {
   action: "approve",

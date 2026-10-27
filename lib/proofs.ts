@@ -169,7 +169,7 @@ export function proofStatusText(summary: ProofSummary) {
   if (summary.state === "approved") {
     const when = summary.approvedAt ? formatPerthDateTime(summary.approvedAt) : "";
     const name = summary.approvedName || "the customer";
-    return when ? `Approved by ${name} at ${when} (Perth)` : `Approved by ${name}`;
+    return when ? `Approved by ${name} on ${when} (Perth)` : `Approved by ${name}`;
   }
   if (summary.state === "changes_requested") {
     const comment = summary.changeComment.trim();
