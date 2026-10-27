@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { APPROVAL_STATEMENT } from "@/lib/proofs";
 import { formatPerthDateTime } from "@/lib/orders";
 
 type DecisionState = {
@@ -13,7 +12,7 @@ type DecisionState = {
   changeRequestedAt: string | null;
 };
 
-export function ProofDecision({ token }: { token: string }) {
+export function ProofDecision({ token, statement }: { token: string; statement: string }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -109,7 +108,7 @@ export function ProofDecision({ token }: { token: string }) {
             onChange={(event) => setConfirmed(event.target.checked)}
             required
           />
-          <span>{APPROVAL_STATEMENT}</span>
+          <span>{statement}</span>
         </label>
         <button
           type="submit"

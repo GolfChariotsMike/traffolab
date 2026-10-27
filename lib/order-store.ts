@@ -2,10 +2,11 @@ import "server-only";
 import postgres, { type Sql } from "postgres";
 import { applyOrderPatch, OrderUpdateError, type CheckoutDraft, type NewPaidOrder, type OrderPatch, type SavedOrder, type ShippingAddress, isOrderStatus } from "@/lib/orders";
 import {
-  APPROVAL_STATEMENT,
+  approvalStatement,
   newProofToken,
   platesApprovalHash,
   platesMatchProof,
+  proofPriceSummary,
   ProofSchemaError,
   type ProofDecisionInput,
   type ProofRecord,
@@ -299,6 +300,7 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
             approvedIp: "",
             approvedUserAgent: "",
             approvalStatement: "",
+            approvedTotalCents: null,
             changeComment: "",
             changeRequestedAt: null,
             changeIp: "",
@@ -416,17 +418,17 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
               return { ok: false as const, code: "closed" as const };
             }
             const approvedAt = new Date().toISOString();
-            const rows = await tx<ProofRow[]>`
-              UPDATE trafflabels_proofs SET
-                status = 'approved',
-                approved_name = ${decision.name},
-                approved_at = ${approvedAt},
-                approved_ip = ${decision.ip},
-                approved_user_agent = ${decision.userAgent},
-                approval_statement = ${APPROVAL_STATEMENT}
-              WHERE id = ${proof.id} AND status = 'pending'
-              RETURNING *
-            `;
+            const price = proofPriceSummary(proof.plates, order);
+            const statement = approvalStatement(price.totalIncGstCents);
+            const rows = await approveProofRow(tx, {
+              id: proof.id,
+              approvedAt,
+              name: decision.name,
+              ip: decision.ip,
+              userAgent: decision.userAgent,
+              statement,
+              totalIncGstCents: price.totalIncGstCents,
+            });
             if (!rows[0]) return { ok: false as const, code: "closed" as const };
             return { ok: true as const, proof: proofFromRow(rows[0]), changed: true };
           }
@@ -471,6 +473,7 @@ type ProofRow = {
   approved_ip: string;
   approved_user_agent: string;
   approval_statement: string;
+  approved_total_cents?: number | string | null;
   change_comment: string;
   change_requested_at: Date | string | null;
   change_ip: string;
@@ -510,11 +513,76 @@ function proofFromRow(row: ProofRow): ProofRecord {
     approvedIp: row.approved_ip,
     approvedUserAgent: row.approved_user_agent,
     approvalStatement: row.approval_statement ?? "",
+    approvedTotalCents: wholeCentsOrNull(row.approved_total_cents),
     changeComment: row.change_comment,
     changeRequestedAt: row.change_requested_at ? iso(row.change_requested_at) : null,
     changeIp: row.change_ip,
     changeUserAgent: row.change_user_agent,
   };
+}
+
+function wholeCentsOrNull(value: unknown): number | null {
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && Number.isSafeInteger(value)) {
+    return value;
+  }
+  return null;
+}
+
+async function approveProofRow(
+  tx: postgres.TransactionSql,
+  input: {
+    id: string;
+    approvedAt: string;
+    name: string;
+    ip: string;
+    userAgent: string;
+    statement: string;
+    totalIncGstCents: number;
+  }
+) {
+  const withoutTotal = () => tx<ProofRow[]>`
+    UPDATE trafflabels_proofs SET
+      status = 'approved',
+      approved_name = ${input.name},
+      approved_at = ${input.approvedAt},
+      approved_ip = ${input.ip},
+      approved_user_agent = ${input.userAgent},
+      approval_statement = ${input.statement}
+    WHERE id = ${input.id} AND status = 'pending'
+    RETURNING *
+  `;
+  try {
+    return await tx.savepoint((sp) => {
+      return sp<ProofRow[]>`
+        UPDATE trafflabels_proofs SET
+          status = 'approved',
+          approved_name = ${input.name},
+          approved_at = ${input.approvedAt},
+          approved_ip = ${input.ip},
+          approved_user_agent = ${input.userAgent},
+          approval_statement = ${input.statement},
+          approved_total_cents = ${input.totalIncGstCents}
+        WHERE id = ${input.id} AND status = 'pending'
+        RETURNING *
+      `;
+    });
+  } catch (error) {
+    if (!isUndefinedColumn(error)) throw error;
+    return withoutTotal();
+  }
+}
+
+function isUndefinedColumn(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "42703"
+  );
 }
 
 function isMissingRelation(error: unknown) {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,17 +8,22 @@ import { ORDER_SCHEMA_SQL } from "./order-schema";
 import { OrderUpdateError, formatPerthDateTime, type NewPaidOrder, type StoredPlate } from "./orders";
 import { proofPlateSvg } from "./proof-plate";
 import { serializeProductionSvg } from "./production-svg";
+import { formatAud } from "./pricing";
 import {
-  APPROVAL_STATEMENT,
+  approvalStatement,
   EMPTY_PROOF_SUMMARY,
   canonicalPlates,
   cleanApproverName,
   cleanChangeComment,
   cleanInvoiceUrl,
+  formatProofShippingLine,
+  formatProofSizeLine,
   groupPlates,
+  gstOnExclusiveCents,
   isProofToken,
   platesApprovalHash,
   proofNotificationCopy,
+  proofPriceSummary,
   proofStatusText,
   proofSummary,
 } from "./proofs";
@@ -38,15 +43,39 @@ assert.doesNotMatch(migration, /FORCE ROW LEVEL SECURITY/);
 assert.match(migration, /No sequence is created/);
 assert.equal(ORDER_SCHEMA_SQL.includes("trafflabels_proofs"), false);
 
+const totalMigration = readFileSync(
+  new URL("../db/migrations/20261027_trafflabels_proof_approved_total.sql", import.meta.url),
+  "utf8"
+);
+assert.match(totalMigration, /ADD COLUMN IF NOT EXISTS approved_total_cents integer/);
+assert.match(totalMigration, /ENABLE ROW LEVEL SECURITY/);
+assert.match(totalMigration, /GRANT ALL ON TABLE public\.trafflabels_proofs TO service_role/);
+assert.match(totalMigration, /REVOKE ALL ON TABLE public\.trafflabels_proofs FROM anon/);
+assert.match(totalMigration, /REVOKE ALL ON TABLE public\.trafflabels_proofs FROM authenticated/);
+assert.doesNotMatch(totalMigration, /GRANT\b[^;]*\bTO anon\b/);
+assert.doesNotMatch(totalMigration, /GRANT\b[^;]*\bTO authenticated\b/);
+assert.doesNotMatch(totalMigration, /CREATE POLICY/i);
+assert.doesNotMatch(totalMigration, /FORCE ROW LEVEL SECURITY/);
+assert.doesNotMatch(totalMigration, /GRANT\b[^;]*\b(TRUNCATE|REFERENCES|TRIGGER)\b[^;]*\bTO (anon|authenticated)\b/);
+
 const proofPage = readFileSync(new URL("../app/proof/[token]/page.tsx", import.meta.url), "utf8");
 const proofForm = readFileSync(
   new URL("../components/proof/proof-decision.tsx", import.meta.url),
   "utf8"
 );
-assert.doesNotMatch(proofPage, /Stik Stickers|TraffoLab/);
-assert.doesNotMatch(proofForm, /Stik Stickers|TraffoLab/);
-assert.match(proofForm, /APPROVAL_STATEMENT/);
-assert.match(APPROVAL_STATEMENT, /I've checked the spelling, wording, sizes and quantities/);
+const proofPrice = readFileSync(
+  new URL("../components/proof/proof-price.tsx", import.meta.url),
+  "utf8"
+);
+assert.doesNotMatch(`${proofPage}\n${proofForm}\n${proofPrice}`, /Stik Stickers|TraffoLab/);
+assert.match(proofPage, /ProofPrice/);
+assert.match(proofPage, /approvalStatement/);
+assert.match(proofPrice, /Subtotal ex GST/);
+assert.match(proofPrice, /GST 10%/);
+assert.match(proofPrice, /Total inc GST/);
+assert.match(proofForm, /statement/);
+assert.match(approvalStatement(9240), /I've checked the spelling, wording, sizes and quantities/);
+assert.match(approvalStatement(9240), /\$92\.40 inc GST/);
 
 assert.equal(cleanApproverName("Alex Nguyen"), "Alex Nguyen");
 assert.equal(cleanApproverName("  Mary-Jane   O'Brien "), "Mary-Jane O'Brien");
@@ -139,9 +168,9 @@ const orderShell = {
     country: "AU",
   },
   shippingMethodId: "standard" as const,
-  subtotalCents: 800,
+  subtotalCents: 2800,
   shippingCents: 0,
-  totalCents: 800,
+  totalCents: 2800,
   stripeSessionId: "manual:1",
   stripePaymentIntentId: null,
   stripeReceiptUrl: null,
@@ -169,13 +198,26 @@ assert.equal(isProofToken(created.token), true);
 assert.notEqual(created.token, saved.id);
 assert.notEqual(created.token, String(saved.orderNumber));
 assert.equal(created.status, "pending");
+assert.equal(created.approvedTotalCents, null);
 assert.equal(created.platesHash, platesApprovalHash(saved.plates));
 assert.equal(proofSummary(saved, created).state, "awaiting");
 assert.equal(proofStatusText(proofSummary(saved, created)), "Awaiting approval");
 
+const storeFile = path.join(dir, "orders.json");
+const legacy = JSON.parse(readFileSync(storeFile, "utf8")) as {
+  orders: Array<{ plates: Array<{ unitCents: number }> }>;
+  proofs: Array<Record<string, unknown>>;
+};
+delete legacy.proofs[0].approvedTotalCents;
+legacy.orders[0].plates[0].unitCents = 1;
+writeFileSync(storeFile, JSON.stringify(legacy));
+
 const opened = await store.openProof(created.token);
 assert.equal(opened?.proof.status, "pending");
+assert.equal(opened?.proof.approvedTotalCents, null);
 assert.equal(opened?.order.customerName, "Alex Nguyen");
+assert.equal(opened?.order.plates[0].unitCents, 1);
+assert.equal(opened?.proof.plates[0].unitCents, 400);
 
 const approved = await store.decideProof(created.token, {
   action: "approve",
@@ -189,7 +231,8 @@ assert.equal(approved.changed, true);
 assert.equal(approved.proof.approvedName, "Alex Nguyen");
 assert.equal(approved.proof.approvedIp, "203.0.113.8");
 assert.equal(approved.proof.approvedUserAgent, "TestBrowser");
-assert.equal(approved.proof.approvalStatement, APPROVAL_STATEMENT);
+assert.equal(approved.proof.approvedTotalCents, 3080);
+assert.equal(approved.proof.approvalStatement, approvalStatement(3080));
 assert.ok(approved.proof.approvedAt);
 assert.equal(proofSummary(saved, approved.proof).state, "approved");
 assert.match(proofStatusText(proofSummary(saved, approved.proof)), /Approved by Alex Nguyen on /);
@@ -205,6 +248,7 @@ if (!again.ok) throw new Error("expected repeat");
 assert.equal(again.changed, false);
 assert.equal(again.proof.approvedAt, approved.proof.approvedAt);
 assert.equal(again.proof.approvedName, "Alex Nguyen");
+assert.equal(again.proof.approvedTotalCents, 3080);
 
 const notice = proofNotificationCopy({
   kind: "approved",
@@ -216,8 +260,10 @@ const notice = proofNotificationCopy({
   proofUrl: `https://www.trafflabels.com.au/proof/${created.token}`,
   ip: "203.0.113.8",
   userAgent: "TestBrowser",
+  totalIncGstCents: approved.proof.approvedTotalCents,
 });
 assert.match(notice.subject, /order #1001/);
+assert.match(notice.text, /inc GST/);
 assert.match(notice.text, /Alex Nguyen/);
 assert.match(notice.text, /workshop only/);
 assert.doesNotMatch(`${notice.subject}\n${notice.text}\n${notice.html}`, /Stik Stickers|TraffoLab/);
@@ -257,6 +303,7 @@ assert.equal(changes.ok, true);
 if (!changes.ok) throw new Error("expected changes");
 assert.equal(changes.proof.changeComment, "GENERATOR should be on one line");
 assert.equal(changes.proof.changeIp, "203.0.113.9");
+assert.equal(changes.proof.approvedTotalCents, null);
 const latestOrder = await store.getOrder(saved.orderNumber);
 assert.equal(proofSummary(latestOrder!, changes.proof).state, "changes_requested");
 assert.match(
@@ -285,5 +332,49 @@ assert.doesNotMatch(drawing, /#FF0000/);
 assert.match(drawing, />GENERATOR</);
 assert.doesNotMatch(drawing, />RATOR</);
 assert.doesNotMatch(drawing, />GENE</);
+
+const twentyByTen = plate({
+  widthMm: 20,
+  heightMm: 10,
+  qty: 10,
+  unitCents: 150,
+  lineCents: 1500,
+  text: "DB",
+});
+const quote = proofPriceSummary(
+  [twentyByTen, { ...twentyByTen, text: "LIGHT" }, plate({ qty: 11, unitCents: 400, lineCents: 4400 })],
+  {
+    shippingMethodId: "standard",
+    shippingCents: 1000,
+    subtotalCents: 7400,
+    totalCents: 8400,
+  }
+);
+assert.deepEqual(quote.lines.map(formatProofSizeLine), [
+  `20 × 10 mm × 20 @ ${formatAud(150)} = ${formatAud(3000)}`,
+  `40 × 20 mm × 11 @ ${formatAud(400)} = ${formatAud(4400)}`,
+]);
+assert.equal(formatProofShippingLine(quote), `Standard postage ${formatAud(1000)}`);
+assert.equal(quote.platesCents, 7400);
+assert.equal(quote.exGstCents, 8400);
+assert.equal(quote.gstCents, 840);
+assert.equal(quote.totalIncGstCents, 9240);
+assert.equal(quote.matchesOrderTotal, true);
+assert.equal(approvalStatement(quote.totalIncGstCents), approvalStatement(9240));
+assert.equal(gstOnExclusiveCents(5), 1);
+assert.equal(gstOnExclusiveCents(4), 0);
+
+const drifted = proofPriceSummary([twentyByTen], {
+  shippingMethodId: "express",
+  shippingCents: 1500,
+  subtotalCents: 100,
+  totalCents: 2000,
+});
+assert.equal(drifted.platesCents, 1500);
+assert.equal(drifted.shippingLabel, "Express postage");
+assert.equal(drifted.matchesOrderTotal, false);
+assert.equal(drifted.exGstCents, 2000);
+assert.equal(drifted.gstCents, 200);
+assert.equal(drifted.totalIncGstCents, 2200);
 
 console.log("lib/proofs.test.ts: ok");
