@@ -278,6 +278,19 @@ export function proofSummary(order: SavedOrder, proof: ProofRecord | null): Proo
   return base;
 }
 
+/** Shown in the admin and returned by the cut-file route while a proof is open. */
+export const CUT_FILE_HOLD_MESSAGE = "Waiting for customer proof approval";
+
+/**
+ * Cut files stay available when no proof was sent, and again once the current
+ * proof is approved and still matches the plates. Pending, changes requested,
+ * and superseded proofs hold the download.
+ */
+export function cutFileDownloadHold(summary: Pick<ProofSummary, "state"> | null | undefined) {
+  if (!summary || summary.state === "not_sent" || summary.state === "approved") return null;
+  return CUT_FILE_HOLD_MESSAGE;
+}
+
 export function proofStatusText(summary: ProofSummary) {
   if (summary.state === "not_sent") return "Not sent";
   if (summary.state === "awaiting") return "Awaiting approval";

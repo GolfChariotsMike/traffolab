@@ -19,7 +19,9 @@ import {
   type SavedOrder,
 } from "@/lib/orders";
 import {
+  CUT_FILE_HOLD_MESSAGE,
   EMPTY_PROOF_SUMMARY,
+  cutFileDownloadHold,
   proofPath,
   proofStatusText,
   type ProofSummary,
@@ -344,6 +346,7 @@ export function OrdersBoard({
                 ) : (
                   visible.map((order) => {
                     const kind = productionDownloadKind(order.plates);
+                    const downloadHold = cutFileDownloadHold(proofs[String(order.orderNumber)]);
                     return (
                         <tr
                         key={order.orderNumber}
@@ -389,14 +392,34 @@ export function OrdersBoard({
                         <td className="px-3 py-3">{shippingLabel(order.shippingMethodId)}</td>
                         <td className="px-3 py-3 text-white/75">{formatOrderDate(order.createdAt)}</td>
                         <td className="px-3 py-3">
-                          <a
-                            href={`/api/admin/orders/${order.orderNumber}/files/`}
-                            className="inline-flex size-8 items-center justify-center rounded-full bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
-                            aria-label={`Download ${kind === "zip" ? "ZIP" : "SVG"} for order ${order.orderNumber}`}
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <Download className="size-4" />
-                          </a>
+                          {downloadHold ? (
+                            <div
+                              className="flex max-w-[11rem] flex-col items-start gap-1"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                disabled
+                                className="inline-flex size-8 cursor-not-allowed items-center justify-center rounded-full bg-white/10 text-white/35"
+                                aria-label={`${CUT_FILE_HOLD_MESSAGE}. Download unavailable for order ${order.orderNumber}`}
+                                title={CUT_FILE_HOLD_MESSAGE}
+                              >
+                                <Download className="size-4" />
+                              </button>
+                              <span className="text-[11px] leading-snug text-white/50">
+                                {CUT_FILE_HOLD_MESSAGE}
+                              </span>
+                            </div>
+                          ) : (
+                            <a
+                              href={`/api/admin/orders/${order.orderNumber}/files/`}
+                              className="inline-flex size-8 items-center justify-center rounded-full bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
+                              aria-label={`Download ${kind === "zip" ? "ZIP" : "SVG"} for order ${order.orderNumber}`}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <Download className="size-4" />
+                            </a>
+                          )}
                         </td>
                       </tr>
                     );
