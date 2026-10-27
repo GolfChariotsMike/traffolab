@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { tokenFromCookieHeader, verifyOrdersSession } from "@/lib/admin-auth";
+import { cutFileHoldForOrder } from "@/lib/cut-file-access";
 import { buildProductionDownload } from "@/lib/production-download";
 import { getOrderStore } from "@/lib/order-store";
 
@@ -37,6 +38,11 @@ export async function GET(
   const order = await store.getOrder(orderNumber);
   if (!order) {
     return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });
+  }
+
+  const hold = await cutFileHoldForOrder(store, order);
+  if (hold) {
+    return NextResponse.json({ ok: false, error: hold }, { status: 409 });
   }
 
   const file = buildProductionDownload(order.orderNumber, order.plates);
