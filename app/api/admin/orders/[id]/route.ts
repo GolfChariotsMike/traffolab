@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { tokenFromCookieHeader, verifyOrdersSession } from "@/lib/admin-auth";
-import { parseOrderPatch } from "@/lib/orders";
+import { OrderUpdateError, parseOrderPatch } from "@/lib/orders";
 import { getOrderStore } from "@/lib/order-store";
+import { proofSummary, ProofSchemaError } from "@/lib/proofs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,8 +55,17 @@ export async function PATCH(
     if (!order) {
       return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });
     }
-    return NextResponse.json({ ok: true, order });
+    let proof = null;
+    try {
+      proof = proofSummary(order, await store.getLatestProof(order.id));
+    } catch (error) {
+      if (!(error instanceof ProofSchemaError)) throw error;
+    }
+    return NextResponse.json({ ok: true, order, proof });
   } catch (error) {
+    if (error instanceof OrderUpdateError) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
+    }
     console.error("[admin] order update failed", error);
     return NextResponse.json({ ok: false, error: "Could not update the order." }, { status: 500 });
   }

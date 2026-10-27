@@ -1,6 +1,16 @@
 import "server-only";
 import postgres, { type Sql } from "postgres";
-import { applyOrderPatch, type CheckoutDraft, type NewPaidOrder, type OrderPatch, type SavedOrder, type ShippingAddress, isOrderStatus } from "@/lib/orders";
+import { applyOrderPatch, OrderUpdateError, type CheckoutDraft, type NewPaidOrder, type OrderPatch, type SavedOrder, type ShippingAddress, isOrderStatus } from "@/lib/orders";
+import {
+  APPROVAL_STATEMENT,
+  newProofToken,
+  platesApprovalHash,
+  platesMatchProof,
+  ProofSchemaError,
+  type ProofDecisionInput,
+  type ProofRecord,
+  type ProofStatus,
+} from "@/lib/proofs";
 import { ORDER_SCHEMA_SQL } from "@/lib/order-schema";
 import { databaseUrl, orderStoreMode, type OrderStore } from "@/lib/order-store-types";
 import { createFileOrderStore, defaultOrderFilePath } from "@/lib/order-store-file";
@@ -218,23 +228,307 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
     },
     async updateOrder(orderNumber, patch: OrderPatch) {
       await ensureSchema(sql);
-      const existing = await sql<OrderRow[]>`
-        SELECT * FROM trafflabels_orders WHERE order_number = ${orderNumber}
-      `;
-      if (!existing[0]) return null;
-      const next = applyOrderPatch(rowToOrder(existing[0]), patch);
-      const rows = await sql<OrderRow[]>`
-        UPDATE trafflabels_orders SET
-          status = ${next.status},
-          note = ${next.note},
-          tracking_link = ${next.trackingLink},
-          updated_at = ${next.updatedAt}
-        WHERE order_number = ${orderNumber}
-        RETURNING *
-      `;
-      return rows[0] ? rowToOrder(rows[0]) : null;
+      return sql.begin(async (tx) => {
+          const existing = await tx<OrderRow[]>`
+            SELECT * FROM trafflabels_orders WHERE order_number = ${orderNumber}
+          `;
+          if (!existing[0]) return null;
+          const current = rowToOrder(existing[0]);
+          if (patch.plateLocations && patch.plateLocations.length !== current.plates.length) {
+            throw new OrderUpdateError(
+              "Location list does not match the plates on this order."
+            );
+          }
+          const beforeHash = platesApprovalHash(current.plates);
+          const next = applyOrderPatch(current, patch);
+          const rows = await tx<OrderRow[]>`
+            UPDATE trafflabels_orders SET
+              status = ${next.status},
+              note = ${next.note},
+              tracking_link = ${next.trackingLink},
+              plates = ${tx.json(next.plates)},
+              updated_at = ${next.updatedAt}
+            WHERE order_number = ${orderNumber}
+            RETURNING *
+          `;
+          if (platesApprovalHash(next.plates) !== beforeHash) {
+            try {
+              await tx`
+                UPDATE trafflabels_proofs
+                SET status = 'superseded'
+                WHERE order_id = ${next.id} AND status <> 'superseded'
+              `;
+            } catch (error) {
+              if (!isMissingRelation(error)) throw error;
+            }
+          }
+          return rows[0] ? rowToOrder(rows[0]) : null;
+        });
+    },
+    async createProof(orderNumber, input) {
+      await ensureSchema(sql);
+      try {
+        return await sql.begin(async (tx) => {
+          const existing = await tx<OrderRow[]>`
+            SELECT * FROM trafflabels_orders WHERE order_number = ${orderNumber}
+          `;
+          if (!existing[0]) return null;
+          const order = rowToOrder(existing[0]);
+          await tx`
+            UPDATE trafflabels_proofs
+            SET status = 'superseded'
+            WHERE order_id = ${order.id} AND status <> 'superseded'
+          `;
+          const plates = order.plates;
+          const token = newProofToken();
+          const createdAt = new Date().toISOString();
+          const record: ProofRecord = {
+            id: crypto.randomUUID(),
+            orderId: order.id,
+            orderNumber: order.orderNumber,
+            token,
+            createdAt,
+            status: "pending",
+            plates,
+            platesHash: platesApprovalHash(plates),
+            customerName: order.customerName,
+            shipping: order.shipping,
+            invoiceUrl: input.invoiceUrl,
+            approvedName: "",
+            approvedAt: null,
+            approvedIp: "",
+            approvedUserAgent: "",
+            approvalStatement: "",
+            changeComment: "",
+            changeRequestedAt: null,
+            changeIp: "",
+            changeUserAgent: "",
+          };
+          const rows = await tx<ProofRow[]>`
+            INSERT INTO trafflabels_proofs (
+              id, order_id, order_number, token, created_at, status,
+              plates_snapshot, plates_hash, customer_name, shipping, invoice_url
+            ) VALUES (
+              ${record.id},
+              ${record.orderId},
+              ${record.orderNumber},
+              ${record.token},
+              ${record.createdAt},
+              ${record.status},
+              ${tx.json(record.plates)},
+              ${record.platesHash},
+              ${record.customerName},
+              ${tx.json(record.shipping)},
+              ${record.invoiceUrl}
+            )
+            RETURNING *
+          `;
+          return rows[0] ? proofFromRow(rows[0]) : null;
+        });
+      } catch (error) {
+        rethrowProof(error);
+      }
+    },
+    async openProof(token) {
+      await ensureSchema(sql);
+      try {
+        return await sql.begin(async (tx) => {
+          const proofs = await tx<ProofRow[]>`
+            SELECT * FROM trafflabels_proofs WHERE token = ${token} FOR UPDATE
+          `;
+          if (!proofs[0]) return null;
+          const orders = await tx<OrderRow[]>`
+            SELECT * FROM trafflabels_orders WHERE id = ${proofs[0].order_id}
+          `;
+          if (!orders[0]) return null;
+          let proof = proofFromRow(proofs[0]);
+          const order = rowToOrder(orders[0]);
+          if (proof.status !== "superseded" && !platesMatchProof(order.plates, proof)) {
+            const updated = await tx<ProofRow[]>`
+              UPDATE trafflabels_proofs
+              SET status = 'superseded'
+              WHERE id = ${proof.id}
+              RETURNING *
+            `;
+            if (updated[0]) proof = proofFromRow(updated[0]);
+          }
+          return { proof, order };
+        });
+      } catch (error) {
+        rethrowProof(error);
+      }
+    },
+    async listLatestProofs() {
+      await ensureSchema(sql);
+      try {
+        const rows = await sql<ProofRow[]>`
+          SELECT DISTINCT ON (order_id) *
+          FROM trafflabels_proofs
+          ORDER BY order_id, created_at DESC, id DESC
+        `;
+        return rows.map(proofFromRow);
+      } catch (error) {
+        rethrowProof(error);
+      }
+    },
+    async getLatestProof(orderId) {
+      await ensureSchema(sql);
+      try {
+        const rows = await sql<ProofRow[]>`
+          SELECT * FROM trafflabels_proofs
+          WHERE order_id = ${orderId}
+          ORDER BY created_at DESC, id DESC
+          LIMIT 1
+        `;
+        return rows[0] ? proofFromRow(rows[0]) : null;
+      } catch (error) {
+        rethrowProof(error);
+      }
+    },
+    async decideProof(token, decision: ProofDecisionInput) {
+      await ensureSchema(sql);
+      try {
+        return await sql.begin(async (tx) => {
+          const proofs = await tx<ProofRow[]>`
+            SELECT * FROM trafflabels_proofs WHERE token = ${token} FOR UPDATE
+          `;
+          if (!proofs[0]) return { ok: false as const, code: "not_found" as const };
+          const orders = await tx<OrderRow[]>`
+            SELECT * FROM trafflabels_orders WHERE id = ${proofs[0].order_id}
+          `;
+          if (!orders[0]) return { ok: false as const, code: "not_found" as const };
+          const proof = proofFromRow(proofs[0]);
+          const order = rowToOrder(orders[0]);
+          if (!platesMatchProof(order.plates, proof)) {
+            await tx`
+              UPDATE trafflabels_proofs SET status = 'superseded' WHERE id = ${proof.id}
+            `;
+            return { ok: false as const, code: "superseded" as const };
+          }
+          if (proof.status === "superseded") {
+            return { ok: false as const, code: "superseded" as const };
+          }
+          if (decision.action === "approve") {
+            if (proof.status === "approved") {
+              return { ok: true as const, proof, changed: false };
+            }
+            if (proof.status !== "pending") {
+              return { ok: false as const, code: "closed" as const };
+            }
+            const approvedAt = new Date().toISOString();
+            const rows = await tx<ProofRow[]>`
+              UPDATE trafflabels_proofs SET
+                status = 'approved',
+                approved_name = ${decision.name},
+                approved_at = ${approvedAt},
+                approved_ip = ${decision.ip},
+                approved_user_agent = ${decision.userAgent},
+                approval_statement = ${APPROVAL_STATEMENT}
+              WHERE id = ${proof.id} AND status = 'pending'
+              RETURNING *
+            `;
+            if (!rows[0]) return { ok: false as const, code: "closed" as const };
+            return { ok: true as const, proof: proofFromRow(rows[0]), changed: true };
+          }
+          if (proof.status !== "pending") {
+            return { ok: false as const, code: "closed" as const };
+          }
+          const changeRequestedAt = new Date().toISOString();
+          const rows = await tx<ProofRow[]>`
+            UPDATE trafflabels_proofs SET
+              status = 'changes_requested',
+              change_comment = ${decision.comment},
+              change_requested_at = ${changeRequestedAt},
+              change_ip = ${decision.ip},
+              change_user_agent = ${decision.userAgent}
+            WHERE id = ${proof.id} AND status = 'pending'
+            RETURNING *
+          `;
+          if (!rows[0]) return { ok: false as const, code: "closed" as const };
+          return { ok: true as const, proof: proofFromRow(rows[0]), changed: true };
+        });
+      } catch (error) {
+        rethrowProof(error);
+      }
     },
   };
+}
+
+type ProofRow = {
+  id: string;
+  order_id: string;
+  order_number: number;
+  token: string;
+  created_at: Date | string;
+  status: string;
+  plates_snapshot: StoredPlateJson;
+  plates_hash: string;
+  customer_name: string;
+  shipping: ShippingAddress | string;
+  invoice_url: string;
+  approved_name: string;
+  approved_at: Date | string | null;
+  approved_ip: string;
+  approved_user_agent: string;
+  approval_statement: string;
+  change_comment: string;
+  change_requested_at: Date | string | null;
+  change_ip: string;
+  change_user_agent: string;
+};
+
+type StoredPlateJson = SavedOrder["plates"] | string;
+
+function jsonValue<T>(value: T | string): T {
+  return typeof value === "string" ? (JSON.parse(value) as T) : value;
+}
+
+function isProofStatus(value: string): value is ProofStatus {
+  return (
+    value === "pending" ||
+    value === "approved" ||
+    value === "changes_requested" ||
+    value === "superseded"
+  );
+}
+
+function proofFromRow(row: ProofRow): ProofRecord {
+  return {
+    id: row.id,
+    orderId: row.order_id,
+    orderNumber: Number(row.order_number),
+    token: row.token,
+    createdAt: iso(row.created_at),
+    status: isProofStatus(row.status) ? row.status : "pending",
+    plates: jsonValue<SavedOrder["plates"]>(row.plates_snapshot),
+    platesHash: row.plates_hash,
+    customerName: row.customer_name,
+    shipping: jsonValue<ShippingAddress>(row.shipping),
+    invoiceUrl: row.invoice_url,
+    approvedName: row.approved_name,
+    approvedAt: row.approved_at ? iso(row.approved_at) : null,
+    approvedIp: row.approved_ip,
+    approvedUserAgent: row.approved_user_agent,
+    approvalStatement: row.approval_statement ?? "",
+    changeComment: row.change_comment,
+    changeRequestedAt: row.change_requested_at ? iso(row.change_requested_at) : null,
+    changeIp: row.change_ip,
+    changeUserAgent: row.change_user_agent,
+  };
+}
+
+function isMissingRelation(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "42P01"
+  );
+}
+
+function rethrowProof(error: unknown): never {
+  if (isMissingRelation(error)) throw new ProofSchemaError();
+  throw error;
 }
 
 let singleton: OrderStore | null | undefined;
