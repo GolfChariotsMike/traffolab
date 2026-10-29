@@ -8,7 +8,6 @@ import {
   HONEYPOT_FIELD,
   INTRO_LINE,
   PDF_PUBLIC_PATH,
-  RETURN_LINE,
   SIGNATURE_NOTE,
   SUPPLIER_ABN,
   SUPPLIER_CONTACT,
@@ -449,10 +448,6 @@ export function ApplicationForm() {
                 {pending ? "Submitting…" : "Submit application"}
               </button>
             </div>
-
-            <p className="bg-[#fee100] px-4 py-3 text-center text-sm font-semibold sm:px-6">
-              {RETURN_LINE}
-            </p>
           </form>
         )}
 

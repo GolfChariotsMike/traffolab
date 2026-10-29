@@ -8,7 +8,6 @@ import {
   FOOTER_LINE,
   INTRO_LINE,
   PDF_PUBLIC_PATH,
-  RETURN_LINE,
   SUPPLIER_ABN,
   SUPPLIER_NAME,
   TRADING_TERMS,
@@ -70,10 +69,9 @@ assert.equal(
   AUTHORISATION_STATEMENT,
   "I confirm the details on this form are correct, that I am authorised to open this account on behalf of the business named above, and that the business agrees to the trading terms above."
 );
-assert.equal(INTRO_LINE, "Fields can be typed into on screen, or print the form and fill it in by hand.");
 assert.equal(
-  RETURN_LINE,
-  "Please return the completed, signed form by email to sales@trafflabels.com.au"
+  INTRO_LINE,
+  "Fill this in online and submit, or download the PDF version and email it back to sales@trafflabels.com.au."
 );
 assert.equal(SUPPLIER_NAME, "TraffLabels, a business of Golf Chariots (Aust) Pty Ltd");
 assert.equal(SUPPLIER_ABN, "ABN 13 622 380 723");
@@ -102,7 +100,8 @@ assert.match(formSource, /TRADING_TERMS/);
 assert.match(formSource, /AUTHORISATION_STATEMENT/);
 assert.match(formSource, /PDF_PUBLIC_PATH/);
 assert.match(formSource, /INTRO_LINE/);
-assert.match(formSource, /RETURN_LINE/);
+assert.match(formSource, /Download PDF version/);
+assert.doesNotMatch(formSource, /RETURN_LINE|Please return the completed, signed form by email/);
 assert.match(pageSource, /noindex|index: false/);
 assert.match(shellSource, /\/account-application/);
 assert.match(robotsSource, /\/account-application\//);

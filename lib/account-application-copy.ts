@@ -8,10 +8,7 @@ export const SUPPLIER_CONTACT = "sales@trafflabels.com.au · trafflabels.com.au"
 export const SALES_EMAIL = "sales@trafflabels.com.au";
 
 export const INTRO_LINE =
-  "Fields can be typed into on screen, or print the form and fill it in by hand.";
-
-export const RETURN_LINE =
-  "Please return the completed, signed form by email to sales@trafflabels.com.au";
+  "Fill this in online and submit, or download the PDF version and email it back to sales@trafflabels.com.au.";
 
 export const FOOTER_LINE =
   "TraffLabels · a business of Golf Chariots (Aust) Pty Ltd · ABN 13 622 380 723 · sales@trafflabels.com.au · trafflabels.com.au";
