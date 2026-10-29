@@ -301,6 +301,9 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
             approvedUserAgent: "",
             approvalStatement: "",
             approvedTotalCents: null,
+            firstViewedAt: null,
+            reminderSentAt: null,
+            autoReminder: true,
             changeComment: "",
             changeRequestedAt: null,
             changeIp: "",
@@ -354,6 +357,7 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
             `;
             if (updated[0]) proof = proofFromRow(updated[0]);
           }
+          proof = await stampFirstViewed(tx, proof);
           return { proof, order };
         });
       } catch (error) {
@@ -385,6 +389,24 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
         return rows[0] ? proofFromRow(rows[0]) : null;
       } catch (error) {
         rethrowProof(error);
+      }
+    },
+    async claimProofReminder(proofId, sentAt) {
+      await ensureSchema(sql);
+      try {
+        const rows = await sql<ProofRow[]>`
+          UPDATE trafflabels_proofs
+          SET reminder_sent_at = ${sentAt}
+          WHERE id = ${proofId}
+            AND status = 'pending'
+            AND reminder_sent_at IS NULL
+            AND auto_reminder = true
+          RETURNING *
+        `;
+        return rows[0] ? proofFromRow(rows[0]) : null;
+      } catch (error) {
+        if (isUndefinedColumn(error) || isMissingRelation(error)) throw new ProofSchemaError();
+        throw error;
       }
     },
     async decideProof(token, decision: ProofDecisionInput) {
@@ -474,6 +496,9 @@ type ProofRow = {
   approved_user_agent: string;
   approval_statement: string;
   approved_total_cents?: number | string | null;
+  first_viewed_at?: Date | string | null;
+  reminder_sent_at?: Date | string | null;
+  auto_reminder?: boolean | null;
   change_comment: string;
   change_requested_at: Date | string | null;
   change_ip: string;
@@ -514,11 +539,33 @@ function proofFromRow(row: ProofRow): ProofRecord {
     approvedUserAgent: row.approved_user_agent,
     approvalStatement: row.approval_statement ?? "",
     approvedTotalCents: wholeCentsOrNull(row.approved_total_cents),
+    firstViewedAt: row.first_viewed_at ? iso(row.first_viewed_at) : null,
+    reminderSentAt: row.reminder_sent_at ? iso(row.reminder_sent_at) : null,
+    autoReminder: row.auto_reminder !== false,
     changeComment: row.change_comment,
     changeRequestedAt: row.change_requested_at ? iso(row.change_requested_at) : null,
     changeIp: row.change_ip,
     changeUserAgent: row.change_user_agent,
   };
+}
+
+async function stampFirstViewed(tx: postgres.TransactionSql, proof: ProofRecord) {
+  if (proof.firstViewedAt) return proof;
+  const viewedAt = new Date().toISOString();
+  try {
+    const rows = await tx.savepoint((sp) => {
+      return sp<ProofRow[]>`
+        UPDATE trafflabels_proofs
+        SET first_viewed_at = ${viewedAt}
+        WHERE id = ${proof.id} AND first_viewed_at IS NULL
+        RETURNING *
+      `;
+    });
+    return rows[0] ? proofFromRow(rows[0]) : { ...proof, firstViewedAt: viewedAt };
+  } catch (error) {
+    if (isUndefinedColumn(error)) return proof;
+    throw error;
+  }
 }
 
 function wholeCentsOrNull(value: unknown): number | null {

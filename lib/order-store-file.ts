@@ -34,12 +34,22 @@ function normalizeOrder(order: SavedOrder): SavedOrder {
   };
 }
 
+function timestampOrNull(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 function normalizeProof(proof: ProofRecord): ProofRecord {
   const total = proof.approvedTotalCents;
   return {
     ...proof,
     approvedTotalCents:
       typeof total === "number" && Number.isInteger(total) && total >= 0 ? total : null,
+    firstViewedAt: timestampOrNull(proof.firstViewedAt),
+    reminderSentAt: timestampOrNull(proof.reminderSentAt),
+    autoReminder: proof.autoReminder !== false,
   };
 }
 
@@ -212,6 +222,9 @@ export function createFileOrderStore(filePath: string): OrderStore {
           approvedUserAgent: "",
           approvalStatement: "",
           approvedTotalCents: null,
+          firstViewedAt: null,
+          reminderSentAt: null,
+          autoReminder: true,
           changeComment: "",
           changeRequestedAt: null,
           changeIp: "",
@@ -229,10 +242,16 @@ export function createFileOrderStore(filePath: string): OrderStore {
         if (!proof) return null;
         const order = db.orders.find((item) => item.id === proof.orderId);
         if (!order) return null;
+        let dirty = false;
         if (proof.status !== "superseded" && !platesMatchProof(order.plates, proof)) {
           proof.status = "superseded";
-          await write(db);
+          dirty = true;
         }
+        if (!proof.firstViewedAt) {
+          proof.firstViewedAt = new Date().toISOString();
+          dirty = true;
+        }
+        if (dirty) await write(db);
         return { proof: clone(proof), order: clone(order) };
       });
     },
@@ -244,6 +263,18 @@ export function createFileOrderStore(filePath: string): OrderStore {
       const db = await read();
       const found = latestProofs(db.proofs).find((proof) => proof.orderId === orderId);
       return found ? clone(found) : null;
+    },
+    async claimProofReminder(proofId, sentAt) {
+      return locked(async () => {
+        const db = await read();
+        const proof = db.proofs.find((item) => item.id === proofId);
+        if (!proof || proof.status !== "pending" || proof.reminderSentAt || !proof.autoReminder) {
+          return null;
+        }
+        proof.reminderSentAt = sentAt;
+        await write(db);
+        return clone(proof);
+      });
     },
     async decideProof(token, decision: ProofDecisionInput) {
       return locked(async () => {
