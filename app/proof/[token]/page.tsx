@@ -4,6 +4,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { ProofDecision } from "@/components/proof/proof-decision";
 import { ProofPrice } from "@/components/proof/proof-price";
 import { proofPlateSvg } from "@/lib/proof-plate";
+import { proofPlateWidth, widestPlateMm } from "@/lib/proof-scale";
 import { getOrderStore } from "@/lib/order-store";
 import { formatPerthDateTime, orderItemCount, type StoredPlate } from "@/lib/orders";
 import {
@@ -26,20 +27,27 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+function plateTextMm(plate: StoredPlate) {
+  if (typeof plate.uniformTextMm === "number") return plate.uniformTextMm;
+  if (plate.uniformTextSize) return plate.objects[0]?.fontSize;
+  return undefined;
+}
+
 function PlateFigure({ plate }: { plate: StoredPlate }) {
   const svg = proofPlateSvg(plate);
-  const width = Math.min(560, Math.max(180, plate.widthMm * 5));
+  const textMm = plateTextMm(plate);
   return (
-    <figure className="flex flex-col gap-2">
+    <figure className="flex max-w-full flex-col gap-2" style={{ width: proofPlateWidth(plate.widthMm) }}>
       <div
-        className="border border-neutral-200 bg-white [&_svg]:h-auto [&_svg]:w-full"
-        style={{ width: `min(100%, ${width}px)` }}
+        className="border border-neutral-200 bg-white [&_svg]:h-full [&_svg]:w-full"
+        style={{ aspectRatio: `${plate.widthMm} / ${plate.heightMm}` }}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
       <figcaption className="text-sm">
         <span className="block font-medium whitespace-pre-wrap">{plate.text || "Untitled plate"}</span>
         <span className="mt-0.5 block text-neutral-600">
-          {plate.widthMm} × {plate.heightMm} mm · qty {plate.qty}
+          {plate.widthMm} × {plate.heightMm} mm
+          {textMm != null ? ` · text ${textMm} mm` : ""} · qty {plate.qty}
         </span>
       </figcaption>
     </figure>
@@ -101,6 +109,7 @@ export default async function ProofPage({
   const price = proofPriceSummary(proof.plates, order);
   const groups = groupPlates(proof.plates);
   const showGroups = groups.some((group) => group.location);
+  const widest = widestPlateMm(proof.plates);
   const totalQty = orderItemCount(proof.plates);
   const invoice = cleanInvoiceUrl(proof.invoiceUrl);
   const address = proofAddressLines(proof.shipping);
@@ -166,7 +175,10 @@ export default async function ProofPage({
                   {group.location || "No location"}
                 </h2>
               ) : null}
-              <ul className="flex flex-col gap-6">
+              <ul
+                className="flex flex-wrap items-end gap-x-4 gap-y-6"
+                style={{ containerType: "inline-size", ["--proof-widest" as string]: String(widest) }}
+              >
                 {group.plates.map(({ plate, index }) => (
                   <li key={`${plate.text}-${index}`}>
                     <PlateFigure plate={plate} />
