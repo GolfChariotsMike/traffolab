@@ -1,10 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { colourPairOf, designSummary, type OrderLine } from "@/lib/label-design";
+import {
+  UNIFORM_TEXT_MM_STORAGE_KEY,
+  UNIFORM_TEXT_STORAGE_KEY,
+  colourPairOf,
+  designSummary,
+  uniformTextGroups,
+  type OrderLine,
+} from "@/lib/label-design";
 import { formatAud, priceForPlate, subtotalCents } from "@/lib/pricing";
 import { routes } from "@/lib/site";
 import { cn } from "@/lib/utils";
@@ -26,6 +34,23 @@ export function OrderPanel({
   onOpenInDesigner?: (line: OrderLine) => void;
   listClassName?: string;
 }) {
+  const [uniformText, setUniformText] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(UNIFORM_TEXT_STORAGE_KEY) === "1";
+  });
+  const [uniformTextMm, setUniformTextMm] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(UNIFORM_TEXT_MM_STORAGE_KEY) ?? "";
+  });
+  const sharedSizes = uniformText
+    ? uniformTextGroups(
+        lines.map((line) => ({
+          widthMm: line.design.widthMm,
+          heightMm: line.design.heightMm,
+          text: line.design.objects.map((object) => object.text).join("\n"),
+        }))
+      )
+    : [];
   const platesCents = subtotalCents(
     lines.map((line) => ({
       widthMm: line.design.widthMm,
@@ -127,6 +152,59 @@ export function OrderPanel({
           })}
         </ul>
       )}
+
+      {lines.length > 0 ? (
+        <label className="flex items-start gap-3 border-t border-white/10 pt-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1 size-4 accent-[#fee100]"
+            checked={uniformText}
+            onChange={(event) => {
+              const next = event.target.checked;
+              setUniformText(next);
+              try {
+                window.localStorage.setItem(UNIFORM_TEXT_STORAGE_KEY, next ? "1" : "0");
+              } catch {
+                // The summary reads the same key. Checkout still sends the checkbox state.
+              }
+            }}
+          />
+          <span>
+            <span className="block text-paper">Uniform text size per plate size</span>
+            <span className="mt-1 block text-xs text-paper/50">
+              Plates of the same dimensions share one text size. Enter a size to use it on every
+              plate. A legend that cannot fit is not shrunk.
+            </span>
+            {uniformText ? (
+              <input
+                value={uniformTextMm}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setUniformTextMm(next);
+                  try {
+                    window.localStorage.setItem(UNIFORM_TEXT_MM_STORAGE_KEY, next);
+                  } catch {
+                    // Checkout reads the same key.
+                  }
+                }}
+                inputMode="decimal"
+                placeholder="Fixed mm, or blank"
+                className="mt-2 h-8 w-36 bg-charcoal px-2 text-xs"
+              />
+            ) : null}
+            {sharedSizes.length > 0 ? (
+              <span className="mt-1 block text-xs text-paper/60">
+                {sharedSizes
+                  .map(
+                    (group) =>
+                      `${group.widthMm} × ${group.heightMm} mm at ${group.fontSize} mm`
+                  )
+                  .join(" · ")}
+              </span>
+            ) : null}
+          </span>
+        </label>
+      ) : null}
 
       {lines.length > 0 ? (
         <div className="flex items-center justify-between border-t border-white/10 pt-3">

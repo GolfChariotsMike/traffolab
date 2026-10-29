@@ -22,6 +22,8 @@ export const ENGRAVE_FONT_WEIGHT = 400;
  * uses this glyph box or the type stays small inside the plate.
  */
 const GLYPH_ASCENT_EM = 0.73;
+/** Cap height of Arial Regular, as a fraction of the em. */
+export const CAP_HEIGHT_EM = GLYPH_ASCENT_EM;
 const GLYPH_ASCENT_TALL_EM = 0.78;
 const GLYPH_DESCENT_EM = 0.22;
 const GLYPH_DESCENT_FLAT_EM = 0.02;
@@ -526,6 +528,267 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
 }
 
 /**
+ * Largest 0.1 mm em that fits this legend inside the usual inset, after the
+ * same word-boundary wrap the designer uses. This is not raised to
+ * {@link MIN_FONT_MM}: a long legend may only fit smaller than that floor.
+ */
+export function legendFitFontMm(text: string, plate: PlateSize) {
+  const wrapped = wrapLegendToFit(text, plate);
+  const { kW, kH } = textFactors(wrapped);
+  const fit = Math.min(legendInnerWidth(plate) / kW, legendInnerHeight(plate) / kH);
+  if (!Number.isFinite(fit) || fit <= 0) return 0.1;
+  return Math.min(MAX_FONT_MM, floorMm(Math.max(fit, 0.1)));
+}
+
+export function capHeightMm(fontSize: number) {
+  return Math.round(fontSize * CAP_HEIGHT_EM * 1000) / 1000;
+}
+
+/** Collapse baked line breaks so a new size can wrap the legend again. */
+export function singleLineLegend(text: string) {
+  return text.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function linesFitAtFont(lines: string[], plate: PlateSize, fontSize: number) {
+  const width = Math.max(...lines.map(lineEmWidth));
+  if (width * fontSize > legendInnerWidth(plate) + 1e-4) return false;
+  const { kH } = textFactors(lines.join("\n"));
+  return kH * fontSize <= legendInnerHeight(plate) + 1e-4;
+}
+
+export type FixedLegendLayout = {
+  text: string;
+  lines: string[];
+  fits: boolean;
+  fontSize: number;
+  /** Gap from the centred glyph box to the inset. Negative when the legend overflows. */
+  clearanceMm: number;
+  horizontalClearanceMm: number;
+  verticalClearanceMm: number;
+};
+
+/**
+ * Wrap a legend so it fits at one exact em size. One line is preferred, then
+ * two, then three, on spaces and hyphens only. The size is never reduced.
+ */
+export function layoutLegendAtFont(text: string, plate: PlateSize, fontSize: number): FixedLegendLayout {
+  const source = singleLineLegend(text);
+  const choose = (lines: string[], fits: boolean): FixedLegendLayout => {
+    const { kW, kH } = textFactors(lines.join("\n"));
+    const horizontal = (legendInnerWidth(plate) - kW * fontSize) / 2;
+    const vertical = (legendInnerHeight(plate) - kH * fontSize) / 2;
+    const round = (value: number) => Math.round(value * 1000) / 1000;
+    return {
+      text: lines.join("\n"),
+      lines,
+      fits,
+      fontSize,
+      horizontalClearanceMm: round(horizontal),
+      verticalClearanceMm: round(vertical),
+      clearanceMm: round(Math.min(horizontal, vertical)),
+    };
+  };
+  if (!source) return choose([""], true);
+  if (linesFitAtFont([source], plate, fontSize)) return choose([source], true);
+  for (const count of [2, 3] as const) {
+    const fitting = arrangements(source, count).filter((lines) => linesFitAtFont(lines, plate, fontSize));
+    if (fitting.length > 0) {
+      return choose(fitting.reduce((best, lines) => preferLines(best, lines)), true);
+    }
+  }
+  const fallback = [...arrangements(source, 2), ...arrangements(source, 3)];
+  if (fallback.length === 0) return choose([source], linesFitAtFont([source], plate, fontSize));
+  const fittingHeight = fallback.filter((lines) => {
+    const { kH } = textFactors(lines.join("\n"));
+    return kH * fontSize <= legendInnerHeight(plate) + 1e-4;
+  });
+  const pool = fittingHeight.length > 0 ? fittingHeight : fallback;
+  const chosen = pool.reduce((best, lines) => preferLines(best, lines));
+  return choose(chosen, linesFitAtFont(chosen, plate, fontSize));
+}
+
+/** Largest 0.1 mm size at which every legend fits, or null when none of the steps fit. */
+export function largestFixedTextMm(
+  plates: Array<{ widthMm: number; heightMm: number; text: string }>
+) {
+  for (let tenths = 200; tenths >= 5; tenths -= 1) {
+    const fontSize = tenths / 10;
+    const fits = plates.every((plate) => layoutLegendAtFont(plate.text, plate, fontSize).fits);
+    if (fits) return fontSize;
+  }
+  return null;
+}
+
+/** Place a legend at an exact em size, wrapped and centred inside the inset. */
+export function placeLegendAtSize<T extends Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align">>(
+  object: T,
+  plate: PlateSize,
+  fontSize: number
+): T {
+  const text = wrapLegendToFit(object.text, plate);
+  const { kH, ascent } = textFactors(text);
+  const inset = autoTextInset(plate);
+  const height = kH * fontSize;
+  const x =
+    object.align === "left"
+      ? inset.x
+      : object.align === "right"
+        ? plate.widthMm - inset.x
+        : plate.widthMm / 2;
+  const y = (plate.heightMm - height) / 2 + ascent * fontSize;
+  return {
+    ...object,
+    text,
+    fontSize,
+    x: roundMm(x),
+    y: roundMm(y),
+  };
+}
+
+export type UniformTextGroup = {
+  widthMm: number;
+  heightMm: number;
+  fontSize: number;
+  capHeightMm: number;
+  /** Legends whose own fit equals the shared size. */
+  limitingTexts: string[];
+};
+
+function plateSizeKey(widthMm: number, heightMm: number) {
+  return `${Math.round(widthMm * 10)}x${Math.round(heightMm * 10)}`;
+}
+
+/** One shared em for every plate of the same width and height. */
+export function uniformTextGroups(
+  plates: Array<{ widthMm: number; heightMm: number; text: string }>
+): UniformTextGroup[] {
+  const groups = new Map<string, { widthMm: number; heightMm: number; fits: Array<{ text: string; fontSize: number }> }>();
+  for (const plate of plates) {
+    const key = plateSizeKey(plate.widthMm, plate.heightMm);
+    const fontSize = legendFitFontMm(plate.text, plate);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.fits.push({ text: plate.text, fontSize });
+    } else {
+      groups.set(key, {
+        widthMm: plate.widthMm,
+        heightMm: plate.heightMm,
+        fits: [{ text: plate.text, fontSize }],
+      });
+    }
+  }
+  return [...groups.values()].map((group) => {
+    const fontSize = Math.min(...group.fits.map((fit) => fit.fontSize));
+    return {
+      widthMm: group.widthMm,
+      heightMm: group.heightMm,
+      fontSize,
+      capHeightMm: capHeightMm(fontSize),
+      limitingTexts: group.fits.filter((fit) => fit.fontSize === fontSize).map((fit) => fit.text),
+    };
+  });
+}
+
+type UniformPlate = {
+  widthMm: number;
+  heightMm: number;
+  text: string;
+  uniformTextSize?: boolean;
+  /** Set when every plate in the order uses this exact em size. */
+  uniformTextMm?: number;
+  objects: Array<Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align">>;
+};
+
+/** Every plate of one size gets the largest em that still fits every legend of that size. */
+export function applyUniformTextSize<T extends UniformPlate>(plates: T[]): T[] {
+  const groups = uniformTextGroups(
+    plates.flatMap((plate) => {
+      const texts = plate.objects.length > 0 ? plate.objects.map((object) => object.text) : [plate.text];
+      return texts.map((text) => ({ widthMm: plate.widthMm, heightMm: plate.heightMm, text }));
+    })
+  );
+  const fonts = new Map(
+    groups.map((group) => [plateSizeKey(group.widthMm, group.heightMm), group.fontSize])
+  );
+  return plates.map((plate) => {
+    const fontSize = fonts.get(plateSizeKey(plate.widthMm, plate.heightMm));
+    if (fontSize == null) return { ...plate, uniformTextSize: true };
+    const objects = plate.objects.map((object) =>
+      placeLegendAtSize({ ...object, text: singleLineLegend(object.text) }, plate, fontSize)
+    );
+    const text = objects
+      .map((object) => object.text.trim())
+      .filter(Boolean)
+      .join("\n");
+    const next = { ...plate, uniformTextSize: true, objects, text: text || plate.text };
+    delete next.uniformTextMm;
+    return next;
+  });
+}
+
+/** One em size for every plate in the order. Legends wrap up to three lines and are not shrunk. */
+export function applyFixedTextSize<T extends UniformPlate>(plates: T[], fontSize: number): T[] {
+  return plates.map((plate) => {
+    const objects = plate.objects.map((object) => {
+      const laid = layoutLegendAtFont(object.text, plate, fontSize);
+      const { kH, ascent } = textFactors(laid.text);
+      const inset = autoTextInset(plate);
+      const height = kH * fontSize;
+      const x =
+        object.align === "left"
+          ? inset.x
+          : object.align === "right"
+            ? plate.widthMm - inset.x
+            : plate.widthMm / 2;
+      const y = (plate.heightMm - height) / 2 + ascent * fontSize;
+      return {
+        ...object,
+        text: laid.text,
+        fontSize,
+        x: roundMm(x),
+        y: roundMm(y),
+      };
+    });
+    const text = objects
+      .map((object) => object.text.trim())
+      .filter(Boolean)
+      .join("\n");
+    const next = {
+      ...plate,
+      uniformTextMm: fontSize,
+      objects,
+      text: text || plate.text,
+    };
+    delete next.uniformTextSize;
+    return next;
+  });
+}
+
+/** Put each legend back on its own fit and clear the shared-size mark. */
+export function restoreIndividualLegendFit<T extends UniformPlate>(plates: T[]): T[] {
+  return plates.map((plate) => {
+    const objects = plate.objects.map((object) => {
+      const fitted = fitTextToPlate({ ...object, id: "text-1", type: "text" }, plate);
+      return {
+        ...object,
+        text: fitted.text,
+        x: fitted.x,
+        y: fitted.y,
+        fontSize: fitted.fontSize,
+      };
+    });
+    const text = objects
+      .map((object) => object.text.trim())
+      .filter(Boolean)
+      .join("\n");
+    const rest = { ...plate };
+    delete rest.uniformTextSize;
+    delete rest.uniformTextMm;
+    return { ...rest, objects, text: text || plate.text };
+  });
+}
+
+/**
  * Production and nest engrave. A legend that already fits, including a manual
  * line break, keeps its saved anchor. A single line that spills past the inset
  * is wrapped and refitted the same way as the designer.
@@ -533,6 +796,8 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
 export function engraveLayout<
   T extends Pick<TextObject, "id" | "text" | "x" | "y" | "fontSize" | "align">,
 >(object: T, plate: PlateSize): T {
+  const atFont = layoutLegendAtFont(singleLineLegend(object.text), plate, object.fontSize);
+  if (atFont.text === object.text) return object;
   const text = wrapLegendToFit(object.text, plate);
   if (text === object.text) return object;
   const fitted = fitTextToPlate(
@@ -1074,6 +1339,8 @@ export function parseDesign(
 
 export const DESIGN_STORAGE_KEY = "trafflabels.design.v1";
 export const ORDER_STORAGE_KEY = "trafflabels.order.v1";
+export const UNIFORM_TEXT_STORAGE_KEY = "trafflabels.uniform-text.v1";
+export const UNIFORM_TEXT_MM_STORAGE_KEY = "trafflabels.uniform-text-mm.v1";
 
 /**
  * Designer canvas load, including CSV “Open in designer”.

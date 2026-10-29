@@ -4,7 +4,14 @@
  * line_items. Never trust client-supplied money amounts.
  */
 
-import { COLOUR_PAIRS, MAX_FONT_MM, type ColourPairId } from "@/lib/label-design";
+import {
+  COLOUR_PAIRS,
+  MAX_FONT_MM,
+  applyFixedTextSize,
+  applyUniformTextSize,
+  type ColourPairId,
+} from "@/lib/label-design";
+import { cleanUniformTextMm } from "@/lib/orders";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 import {
   SHIPPING_METHODS,
@@ -39,6 +46,10 @@ export type CheckoutRequest = {
   lines: CheckoutLineInput[];
   shippingMethodId: ShippingMethodId;
   customerEmail: string;
+  /** One text size for every plate of the same dimensions. */
+  uniformTextSize?: boolean;
+  /** One em size for every plate in the order. */
+  uniformTextMm?: number;
 };
 
 export type CheckoutLineItem = {
@@ -255,7 +266,16 @@ export function parseCheckoutBody(body: unknown): CheckoutParseOk | CheckoutPars
     });
   }
 
-  return { ok: true, value: buildCheckout({ lines, shippingMethodId: shippingRaw, customerEmail: email }) };
+  return {
+    ok: true,
+    value: buildCheckout({
+      lines,
+      shippingMethodId: shippingRaw,
+      customerEmail: email,
+      uniformTextSize: raw.uniformTextSize === true,
+      uniformTextMm: cleanUniformTextMm(raw.uniformTextMm) ?? undefined,
+    }),
+  };
 }
 
 export function buildCheckout(request: CheckoutRequest): BuiltCheckout {
@@ -341,12 +361,17 @@ export function buildCheckout(request: CheckoutRequest): BuiltCheckout {
       objects,
     };
   });
+  const laidOut = request.uniformTextMm
+    ? applyFixedTextSize(plates, request.uniformTextMm)
+    : request.uniformTextSize
+      ? applyUniformTextSize(plates)
+      : plates;
 
   return {
     request,
     quote,
     lineItems,
-    plates,
+    plates: laidOut,
     metadata: {
       shippingMethodId: request.shippingMethodId,
       plateCount: String(request.lines.length),

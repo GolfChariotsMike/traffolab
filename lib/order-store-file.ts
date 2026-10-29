@@ -28,9 +28,15 @@ type FileDb = {
 const EMPTY: FileDb = { drafts: {}, orders: [], proofs: [], nextNumber: 1001 };
 
 function normalizeOrder(order: SavedOrder): SavedOrder {
+  const fromPlate = order.plates?.find((plate) => typeof plate.uniformTextMm === "number")?.uniformTextMm;
+  const uniformTextMm = fromPlate ?? order.uniformTextMm;
+  const fromPlates = order.plates?.some((plate) => plate.uniformTextSize === true) === true;
   return {
     ...order,
     paymentSource: order.paymentSource === "manual" ? "manual" : "stripe",
+    uniformTextMm: typeof uniformTextMm === "number" ? uniformTextMm : undefined,
+    uniformTextSize:
+      typeof uniformTextMm === "number" ? false : order.uniformTextSize === true || fromPlates,
   };
 }
 
