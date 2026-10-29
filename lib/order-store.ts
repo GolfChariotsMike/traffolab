@@ -72,6 +72,7 @@ type OrderRow = {
   stripe_receipt_url: string | null;
   stripe_livemode: boolean;
   payment_source?: string | null;
+  uniform_text_size?: boolean | null;
   note: string;
   tracking_link: string;
   plates: SavedOrder["plates"] | string;
@@ -119,6 +120,9 @@ function rowToOrder(row: OrderRow): SavedOrder {
     note: row.note,
     trackingLink: row.tracking_link,
     plates: platesOf(row.plates),
+    uniformTextSize:
+      row.uniform_text_size === true ||
+      platesOf(row.plates).some((plate) => plate.uniformTextSize === true),
   };
 }
 
@@ -170,7 +174,34 @@ async function insertOrder(sql: Sql, order: NewPaidOrder): Promise<SavedOrder> {
           END
     RETURNING *
   `;
-  return rowToOrder(rows[0]);
+  const saved = rowToOrder(rows[0]);
+  await rememberUniformTextSize(sql, saved.id, saved.uniformTextSize === true);
+  return saved;
+}
+
+async function rememberUniformTextSize(sql: Sql | postgres.TransactionSql, orderId: string, enabled: boolean) {
+  const write = async (query: Sql | postgres.TransactionSql) => {
+    await query`
+      UPDATE trafflabels_orders
+      SET uniform_text_size = ${enabled}
+      WHERE id = ${orderId}
+    `;
+  };
+  if ("savepoint" in sql) {
+    try {
+      await sql.savepoint(async (sp) => {
+        await write(sp);
+      });
+    } catch (error) {
+      if (!isUndefinedColumn(error)) throw error;
+    }
+    return;
+  }
+  try {
+    await write(sql);
+  } catch (error) {
+    if (!isUndefinedColumn(error)) throw error;
+  }
 }
 
 export function createPostgresOrderStore(sql: Sql): OrderStore {
@@ -252,6 +283,7 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
             WHERE order_number = ${orderNumber}
             RETURNING *
           `;
+          await rememberUniformTextSize(tx, next.id, next.uniformTextSize === true);
           if (platesApprovalHash(next.plates) !== beforeHash) {
             try {
               await tx`

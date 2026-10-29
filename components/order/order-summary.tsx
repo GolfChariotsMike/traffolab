@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ORDER_STORAGE_KEY,
+  UNIFORM_TEXT_STORAGE_KEY,
   colourPairOf,
   designSummary,
   readStoredOrderLines,
+  uniformTextGroups,
   type OrderLine,
 } from "@/lib/label-design";
 import {
@@ -67,6 +69,10 @@ export function OrderSummary() {
   const [email, setEmail] = useState(readStoredCheckoutEmail);
   const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  const [uniformText, setUniformText] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(UNIFORM_TEXT_STORAGE_KEY) === "1";
+  });
   const quote = quoteOrder(plateFields(lines), shipping);
 
   const persistLines = (next: OrderLine[]) => {
@@ -110,6 +116,7 @@ export function OrderSummary() {
           customerEmail: trimmed,
           shippingMethodId: shipping,
           returnOrigin: window.location.origin,
+          uniformTextSize: uniformText,
           lines: lines.map((line) => ({
             widthMm: line.design.widthMm,
             heightMm: line.design.heightMm,
@@ -267,6 +274,46 @@ export function OrderSummary() {
                 );
               })}
             </ul>
+
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1 size-4 accent-[#fee100]"
+                checked={uniformText}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setUniformText(next);
+                  try {
+                    window.localStorage.setItem(UNIFORM_TEXT_STORAGE_KEY, next ? "1" : "0");
+                  } catch {
+                    // Pay now still sends the checkbox state.
+                  }
+                }}
+              />
+              <span>
+                <span className="block text-paper">Uniform text size per plate size</span>
+                <span className="mt-1 block text-xs text-paper/55">
+                  Plates of the same dimensions share one text size, small enough that every
+                  legend still fits. The proof and the cut file use that size.
+                </span>
+                {uniformText ? (
+                  <span className="mt-1 block text-xs text-paper/70">
+                    {uniformTextGroups(
+                      lines.map((line) => ({
+                        widthMm: line.design.widthMm,
+                        heightMm: line.design.heightMm,
+                        text: line.design.objects.map((object) => object.text).join("\n"),
+                      }))
+                    )
+                      .map(
+                        (group) =>
+                          `${group.widthMm} × ${group.heightMm} mm at ${group.fontSize} mm`
+                      )
+                      .join(" · ")}
+                  </span>
+                ) : null}
+              </span>
+            </label>
 
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-2 font-mono text-[10px] tracking-[0.18em] text-paper/50 uppercase">

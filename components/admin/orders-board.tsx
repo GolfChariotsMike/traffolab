@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import { Copy, Download, X } from "lucide-react";
 import { ImportOrderDialog } from "@/components/admin/import-order-dialog";
 import { Button } from "@/components/ui/button";
-import { COLOUR_PAIRS, type ColourPairId } from "@/lib/label-design";
+import {
+  applyUniformTextSize,
+  restoreIndividualLegendFit,
+  uniformTextGroups,
+} from "@/lib/label-design";
 import {
   ORDER_STATUSES,
   countryLabel,
@@ -27,6 +31,7 @@ import {
   type ProofSummary,
 } from "@/lib/proofs";
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
+import { proofPlateSvg } from "@/lib/proof-plate";
 import { productionDownloadKind } from "@/lib/production-svg";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +46,20 @@ function shippingLabel(id: SavedOrder["shippingMethodId"]) {
   return SHIPPING_METHODS.find((method) => method.id === id)?.label ?? id;
 }
 
-function faceColour(colourPair: string) {
-  if (colourPair in COLOUR_PAIRS) return COLOUR_PAIRS[colourPair as ColourPairId].face;
-  return "#2a323c";
+function previewPlates(
+  plates: SavedOrder["plates"],
+  locations: string[],
+  uniform: boolean
+) {
+  const located = plates.map((plate, index) => ({
+    ...plate,
+    location: locations[index] ?? plate.location ?? "",
+  }));
+  if (uniform) return applyUniformTextSize(located);
+  if (located.some((plate) => plate.uniformTextSize === true)) {
+    return restoreIndividualLegendFit(located);
+  }
+  return located;
 }
 
 function proofColumnLabel(summary: ProofSummary | undefined) {
@@ -94,6 +110,7 @@ export function OrdersBoard({
   const [proofMessage, setProofMessage] = useState<string | null>(null);
   const [copiedProof, setCopiedProof] = useState(false);
   const [origin, setOrigin] = useState("");
+  const [uniformText, setUniformText] = useState(false);
 
   const visible = useMemo(
     () => (filter === "ALL" ? orders : orders.filter((order) => order.status === filter)),
@@ -107,6 +124,7 @@ export function OrdersBoard({
     setNote(order.note);
     setTrackingLink(order.trackingLink);
     setLocations(order.plates.map((plate) => plate.location ?? ""));
+    setUniformText(order.uniformTextSize === true);
     setInvoiceUrl("");
     setSaveError(null);
     setSaved(false);
@@ -146,7 +164,13 @@ export function OrdersBoard({
       const response = await fetch(`/api/admin/orders/${selected.orderNumber}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, note, trackingLink, plateLocations: locations }),
+        body: JSON.stringify({
+          status,
+          note,
+          trackingLink,
+          plateLocations: locations,
+          uniformTextSize: uniformText,
+        }),
       });
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -166,6 +190,7 @@ export function OrdersBoard({
         )
       );
       setLocations(savedOrder.plates.map((plate) => plate.location ?? ""));
+      setUniformText(savedOrder.uniformTextSize === true);
       if (payload.proof) {
         setProofs((current) => ({
           ...current,
@@ -605,17 +630,48 @@ export function OrdersBoard({
               <h3 className="text-sm font-semibold">
                 Items ({orderItemCount(selected.plates)})
               </h3>
+              <label className="mt-3 flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1 size-4 accent-[#fee100]"
+                  checked={uniformText}
+                  onChange={(event) => {
+                    setUniformText(event.target.checked);
+                    setSaved(false);
+                  }}
+                />
+                <span>
+                  <span className="block font-medium">Uniform text size per plate size</span>
+                  <span className="mt-1 block text-xs text-white/50">
+                    Every plate of the same dimensions uses the largest text that still fits
+                    every legend of that size. Turning this on replaces a proof that was already
+                    sent.
+                  </span>
+                </span>
+              </label>
+              {uniformText ? (
+                <ul className="mt-2 text-xs text-white/55">
+                  {uniformTextGroups(selected.plates).map((group) => (
+                    <li key={`${group.widthMm}x${group.heightMm}`}>
+                      {group.widthMm} × {group.heightMm} mm text {group.fontSize} mm
+                      {group.limitingTexts.length > 0
+                        ? `, limited by ${group.limitingTexts.join(", ")}`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <ul className="mt-2 flex flex-col gap-3">
-                {selected.plates.map((plate, index) => (
+                {previewPlates(selected.plates, locations, uniformText).map((plate, index) => (
                   <li key={`${plate.text}-${index}`} className="flex gap-3 text-sm">
                     <span
-                      aria-hidden
-                      className="mt-0.5 size-8 shrink-0 border border-white/20"
-                      style={{ backgroundColor: faceColour(plate.colourPair) }}
+                      className="mt-0.5 shrink-0 border border-white/20 bg-white [&_svg]:h-auto [&_svg]:w-full"
+                      style={{ width: Math.min(160, Math.max(72, plate.widthMm * 4)) }}
+                      dangerouslySetInnerHTML={{ __html: proofPlateSvg(plate) }}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">
-                        {plate.text.split("\n")[0] || "Untitled plate"}
+                        {selected.plates[index]?.text.split("\n")[0] || "Untitled plate"}
                       </span>
                       <span className="block text-xs text-white/50">
                         {plate.widthMm} × {plate.heightMm} mm · {plate.colourLabel}

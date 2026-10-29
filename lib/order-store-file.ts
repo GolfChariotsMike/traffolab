@@ -28,9 +28,11 @@ type FileDb = {
 const EMPTY: FileDb = { drafts: {}, orders: [], proofs: [], nextNumber: 1001 };
 
 function normalizeOrder(order: SavedOrder): SavedOrder {
+  const fromPlates = order.plates?.some((plate) => plate.uniformTextSize === true) === true;
   return {
     ...order,
     paymentSource: order.paymentSource === "manual" ? "manual" : "stripe",
+    uniformTextSize: order.uniformTextSize === true || fromPlates,
   };
 }
 

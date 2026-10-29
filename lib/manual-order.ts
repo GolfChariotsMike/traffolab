@@ -4,7 +4,7 @@
  * entered beside the file. Nothing is stored unless every row is valid.
  */
 
-import { COLOUR_PAIRS } from "@/lib/label-design";
+import { COLOUR_PAIRS, applyUniformTextSize } from "@/lib/label-design";
 import {
   TEMPLATE_CSV,
   loadCsvDocument,
@@ -169,6 +169,9 @@ export function parseManualOrder(body: unknown, now = new Date()): ManualOrderOk
                 })),
               };
             });
+            if (raw.uniformTextSize === true) {
+              plates = applyUniformTextSize(plates);
+            }
             subtotalCents = quote.subtotalCents;
             shippingCents = quote.shippingCents;
             totalCents = quote.totalCents;
@@ -219,6 +222,7 @@ export function parseManualOrder(body: unknown, now = new Date()): ManualOrderOk
       note,
       trackingLink: "",
       plates,
+      uniformTextSize: raw.uniformTextSize === true,
     },
   };
 }

@@ -4,6 +4,7 @@
  * A paid Checkout Session is stored as NEW.
  */
 
+import { applyUniformTextSize, restoreIndividualLegendFit } from "@/lib/label-design";
 import type { ShippingMethodId } from "@/lib/pricing";
 
 export const ORDER_STATUSES = ["NEW", "CUT", "READY TO SHIP", "SHIPPED"] as const;
@@ -37,6 +38,11 @@ export type StoredPlate = {
   objects: PlateObject[];
   /** Optional switchboard or site group, set in the admin before a proof is sent. */
   location?: string;
+  /**
+   * Set when this plate uses the order's shared text size for its dimensions.
+   * Omitted on individually fitted plates so existing proof hashes stay put.
+   */
+  uniformTextSize?: boolean;
 };
 
 export type CheckoutDraft = {
@@ -82,6 +88,8 @@ export type SavedOrder = {
   note: string;
   trackingLink: string;
   plates: StoredPlate[];
+  /** One text size for every plate of the same dimensions. Off leaves each legend to fill its own plate. */
+  uniformTextSize?: boolean;
 };
 
 export type NewPaidOrder = Omit<SavedOrder, "orderNumber">;
@@ -104,6 +112,8 @@ export type OrderPatch = {
   trackingLink?: string;
   /** One trimmed location per plate, in plate order. */
   plateLocations?: string[];
+  /** Turn the shared text size on or off. Changing it rewrites the legends. */
+  uniformTextSize?: boolean;
 };
 
 export class OrderUpdateError extends Error {
@@ -305,11 +315,19 @@ export function parseOrderPatch(
     patch.plateLocations = locations.locations;
   }
 
+  if ("uniformTextSize" in raw) {
+    if (typeof raw.uniformTextSize !== "boolean") {
+      return { ok: false, error: "Uniform text size must be on or off." };
+    }
+    patch.uniformTextSize = raw.uniformTextSize;
+  }
+
   if (
     patch.status === undefined &&
     patch.note === undefined &&
     patch.trackingLink === undefined &&
-    patch.plateLocations === undefined
+    patch.plateLocations === undefined &&
+    patch.uniformTextSize === undefined
   ) {
     return { ok: false, error: "Nothing to update." };
   }
@@ -321,18 +339,26 @@ export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new 
   const status = patch.status
     ? transitionStatus(order.status, patch.status) ?? order.status
     : order.status;
-  const plates = patch.plateLocations
+  let plates = patch.plateLocations
     ? order.plates.map((plate, index) => ({
         ...plate,
         location: patch.plateLocations?.[index] ?? "",
       }))
     : order.plates;
+  const uniformTextSize =
+    patch.uniformTextSize !== undefined ? patch.uniformTextSize : order.uniformTextSize === true;
+  if (patch.uniformTextSize === true) {
+    plates = applyUniformTextSize(plates);
+  } else if (patch.uniformTextSize === false && order.uniformTextSize === true) {
+    plates = restoreIndividualLegendFit(plates);
+  }
   return {
     ...order,
     status,
     note: patch.note !== undefined ? patch.note : order.note,
     trackingLink:
       patch.trackingLink !== undefined ? patch.trackingLink : order.trackingLink,
+    uniformTextSize,
     plates,
     updatedAt: now.toISOString(),
   };

@@ -137,6 +137,7 @@ export function canonicalPlates(plates: StoredPlate[]) {
       fontSize: object.fontSize,
       align: object.align,
     })),
+    ...(plate.uniformTextSize === true ? { uniformTextSize: true as const } : {}),
   }));
 }
 
