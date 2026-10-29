@@ -35,6 +35,7 @@ import {
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
 import { cleanUniformTextMm } from "@/lib/orders";
 import { proofPlateSvg } from "@/lib/proof-plate";
+import { proofPlateWidth, widestPlateMm } from "@/lib/proof-scale";
 import { productionDownloadKind } from "@/lib/production-svg";
 import { cn } from "@/lib/utils";
 
@@ -77,21 +78,26 @@ function orderPlateItem(
 ) {
   const fitted = fixedMm != null ? layoutLegendAtFont(source, plate, fixedMm) : null;
   const overflows = fitted != null && !fitted.fits;
+  const textMm = plate.uniformTextMm ?? (plate.uniformTextSize ? plate.objects[0]?.fontSize : undefined);
   return (
     <li key={source + "-" + index} className="flex gap-3 text-sm">
       <span
         className={
           overflows
-            ? "mt-0.5 shrink-0 border-2 border-amber-300 bg-white [&_svg]:h-auto [&_svg]:w-full"
-            : "mt-0.5 shrink-0 border border-white/20 bg-white [&_svg]:h-auto [&_svg]:w-full"
+            ? "mt-0.5 shrink-0 border-2 border-amber-300 bg-white [&_svg]:h-full [&_svg]:w-full"
+            : "mt-0.5 shrink-0 border border-white/20 bg-white [&_svg]:h-full [&_svg]:w-full"
         }
-        style={{ width: Math.min(220, Math.max(72, plate.widthMm * 4)) }}
+        style={{
+          width: proofPlateWidth(plate.widthMm),
+          aspectRatio: `${plate.widthMm} / ${plate.heightMm}`,
+        }}
         dangerouslySetInnerHTML={{ __html: proofPlateSvg(plate) }}
       />
       <span className="min-w-0 flex-1">
         <span className="block font-medium">{source.split("\n")[0] || "Untitled plate"}</span>
         <span className="block text-xs text-white/50">
-          {plate.widthMm} × {plate.heightMm} mm · {plate.colourLabel}
+          {plate.widthMm} × {plate.heightMm} mm
+          {textMm != null ? ` · text ${textMm} mm` : ""} · {plate.colourLabel}
           {plate.adhesive3m ? " · 3M adhesive" : ""} · qty {plate.qty} · {formatAud(plate.unitCents)}{" "}
           each · {formatAud(plate.lineCents)}
         </span>
@@ -738,7 +744,13 @@ export function OrdersBoard({
                   ))}
                 </ul>
               ) : null}
-              <ul className="mt-2 flex flex-col gap-3">
+              <ul
+                className="mt-2 flex flex-col gap-4"
+                style={{
+                  containerType: "inline-size",
+                  ["--proof-widest" as string]: String(widestPlateMm(selected.plates)),
+                }}
+              >
                 {previewPlates(selected.plates, locations, uniformText, cleanUniformTextMm(uniformTextMm)).map((plate, index) =>
                   orderPlateItem(
                     plate,
