@@ -20,6 +20,11 @@ export type OrderStore = {
   listLatestProofs(): Promise<ProofRecord[]>;
   getLatestProof(orderId: string): Promise<ProofRecord | null>;
   decideProof(token: string, decision: ProofDecisionInput): Promise<ProofDecisionResult>;
+  /**
+   * Sets reminder_sent_at once, and only while the proof is still pending.
+   * A second call returns null so overlapping cron runs cannot both send.
+   */
+  claimProofReminder(proofId: string, sentAt: string): Promise<ProofRecord | null>;
 };
 
 export function databaseUrl() {

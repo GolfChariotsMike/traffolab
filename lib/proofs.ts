@@ -7,6 +7,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   countryLabel,
   formatPerthDateTime,
+  formatPerthDay,
   type SavedOrder,
   type ShippingAddress,
   type StoredPlate,
@@ -60,6 +61,15 @@ export type ProofRecord = {
   approvalStatement: string;
   /** GST-inclusive total in cents, stored when the customer approves. Null until then. */
   approvedTotalCents: number | null;
+  /** First time the customer opened /proof/<token>. Null until then. */
+  firstViewedAt: string | null;
+  /** When the one automatic reminder was committed. Null if it has not been sent. */
+  reminderSentAt: string | null;
+  /**
+   * False for proofs that already existed when reminders launched, so they are
+   * never emailed. New proofs are true.
+   */
+  autoReminder: boolean;
   changeComment: string;
   changeRequestedAt: string | null;
   changeIp: string;
@@ -82,6 +92,8 @@ export type ProofSummary = {
   changeComment: string;
   changeRequestedAt: string | null;
   invoiceUrl: string;
+  firstViewedAt: string | null;
+  reminderSentAt: string | null;
 };
 
 export const EMPTY_PROOF_SUMMARY: ProofSummary = {
@@ -93,6 +105,8 @@ export const EMPTY_PROOF_SUMMARY: ProofSummary = {
   changeComment: "",
   changeRequestedAt: null,
   invoiceUrl: "",
+  firstViewedAt: null,
+  reminderSentAt: null,
 };
 
 export type PlateGroup = {
@@ -269,6 +283,8 @@ export function proofSummary(order: SavedOrder, proof: ProofRecord | null): Proo
     changeComment: proof.changeComment,
     changeRequestedAt: proof.changeRequestedAt,
     invoiceUrl: proof.invoiceUrl,
+    firstViewedAt: proof.firstViewedAt,
+    reminderSentAt: proof.reminderSentAt,
   };
   if (proof.status === "superseded" || !platesMatchProof(order.plates, proof)) {
     return { ...base, state: "superseded" };
@@ -289,6 +305,24 @@ export const CUT_FILE_HOLD_MESSAGE = "Waiting for customer proof approval";
 export function cutFileDownloadHold(summary: Pick<ProofSummary, "state"> | null | undefined) {
   if (!summary || summary.state === "not_sent" || summary.state === "approved") return null;
   return CUT_FILE_HOLD_MESSAGE;
+}
+
+/** Viewed once the proof page has been opened, or the customer has already answered it. */
+export function proofViewLabel(summary: Pick<ProofSummary, "state" | "firstViewedAt">) {
+  if (summary.state === "not_sent") return null;
+  if (
+    summary.firstViewedAt ||
+    summary.state === "approved" ||
+    summary.state === "changes_requested"
+  ) {
+    return "Viewed";
+  }
+  return "Not opened yet";
+}
+
+export function proofReminderLabel(summary: Pick<ProofSummary, "reminderSentAt">) {
+  if (!summary.reminderSentAt) return null;
+  return `Reminder sent ${formatPerthDay(summary.reminderSentAt)}`;
 }
 
 export function proofStatusText(summary: ProofSummary) {

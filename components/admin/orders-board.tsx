@@ -23,7 +23,9 @@ import {
   EMPTY_PROOF_SUMMARY,
   cutFileDownloadHold,
   proofPath,
+  proofReminderLabel,
   proofStatusText,
+  proofViewLabel,
   type ProofSummary,
 } from "@/lib/proofs";
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
@@ -44,6 +46,30 @@ function shippingLabel(id: SavedOrder["shippingMethodId"]) {
 function faceColour(colourPair: string) {
   if (colourPair in COLOUR_PAIRS) return COLOUR_PAIRS[colourPair as ColourPairId].face;
   return "#2a323c";
+}
+
+function ProofNotes({ summary }: { summary: ProofSummary }) {
+  const viewed = proofViewLabel(summary);
+  const reminder = proofReminderLabel(summary);
+  if (!viewed && !reminder) return null;
+  return (
+    <div className="mt-1 text-xs text-white/55">
+      {viewed ? <p>{viewed}</p> : null}
+      {reminder ? <p>{reminder}</p> : null}
+    </div>
+  );
+}
+
+function ProofCell({ summary }: { summary: ProofSummary | undefined }) {
+  const viewed = summary ? proofViewLabel(summary) : null;
+  const reminder = summary ? proofReminderLabel(summary) : null;
+  return (
+    <div>
+      <span className="block">{proofColumnLabel(summary)}</span>
+      {viewed ? <span className="mt-1 block text-white/55">{viewed}</span> : null}
+      {reminder ? <span className="mt-1 block text-white/55">{reminder}</span> : null}
+    </div>
+  );
 }
 
 function proofColumnLabel(summary: ProofSummary | undefined) {
@@ -365,7 +391,7 @@ export function OrdersBoard({
                           </span>
                         </td>
                         <td className="px-3 py-3 text-xs text-white/70">
-                          {proofColumnLabel(proofs[String(order.orderNumber)])}
+                          <ProofCell summary={proofs[String(order.orderNumber)]} />
                         </td>
                         <td className="px-3 py-3">
                           <span
@@ -533,6 +559,7 @@ export function OrdersBoard({
             <section className="mt-5 border border-white/10 p-3">
               <h3 className="text-sm font-semibold">Proof</h3>
               <p className="mt-2 text-sm whitespace-pre-wrap">{proofStatusText(selectedProof)}</p>
+              <ProofNotes summary={selectedProof} />
               {selectedProof.state === "awaiting" && selectedProof.createdAt ? (
                 <p className="mt-1 text-xs text-white/45">
                   Link created {formatPerthDateTime(selectedProof.createdAt)}

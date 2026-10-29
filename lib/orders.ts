@@ -231,6 +231,18 @@ export function formatPerthDateTime(iso: string) {
   }).format(date);
 }
 
+/** Calendar day in Perth, for example "29 Oct 2026". */
+export function formatPerthDay(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Australia/Perth",
+  }).format(date);
+}
+
 export function stripeDashboardPaymentUrl(
   livemode: boolean,
   paymentIntentId: string | null
