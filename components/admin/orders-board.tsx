@@ -346,6 +346,12 @@ export function OrdersBoard({
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
           <p className="font-heading text-lg font-semibold tracking-tight">TraffLabels</p>
           <div className="flex items-center gap-3">
+            <a
+              href="/admin/account-applications/"
+              className="text-sm text-[#fee100] hover:underline"
+            >
+              Account applications
+            </a>
             {signedInEmail ? (
               <p className="hidden text-sm text-white/55 sm:block">{signedInEmail}</p>
             ) : null}

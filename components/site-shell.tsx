@@ -8,7 +8,8 @@ import { SiteHeader } from "@/components/site-header";
 export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const studio = pathname.startsWith("/admin");
-  const proof = pathname.startsWith("/proof");
+  const proof =
+    pathname.startsWith("/proof") || pathname.startsWith("/account-application");
 
   if (studio) {
     return <div className="min-h-full bg-[#0c0d10] text-paper">{children}</div>;
