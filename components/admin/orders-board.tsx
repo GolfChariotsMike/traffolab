@@ -6,7 +6,9 @@ import { Copy, Download, X } from "lucide-react";
 import { ImportOrderDialog } from "@/components/admin/import-order-dialog";
 import { Button } from "@/components/ui/button";
 import {
+  applyFixedTextSize,
   applyUniformTextSize,
+  layoutLegendAtFont,
   restoreIndividualLegendFit,
   uniformTextGroups,
 } from "@/lib/label-design";
@@ -31,6 +33,7 @@ import {
   type ProofSummary,
 } from "@/lib/proofs";
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
+import { cleanUniformTextMm } from "@/lib/orders";
 import { proofPlateSvg } from "@/lib/proof-plate";
 import { productionDownloadKind } from "@/lib/production-svg";
 import { cn } from "@/lib/utils";
@@ -49,17 +52,67 @@ function shippingLabel(id: SavedOrder["shippingMethodId"]) {
 function previewPlates(
   plates: SavedOrder["plates"],
   locations: string[],
-  uniform: boolean
+  uniform: boolean,
+  fixedMm: number | null
 ) {
   const located = plates.map((plate, index) => ({
     ...plate,
     location: locations[index] ?? plate.location ?? "",
   }));
+  if (uniform && fixedMm != null) return applyFixedTextSize(located, fixedMm);
   if (uniform) return applyUniformTextSize(located);
-  if (located.some((plate) => plate.uniformTextSize === true)) {
+  if (located.some((plate) => plate.uniformTextSize === true || plate.uniformTextMm != null)) {
     return restoreIndividualLegendFit(located);
   }
   return located;
+}
+
+function orderPlateItem(
+  plate: SavedOrder["plates"][number],
+  index: number,
+  source: string,
+  fixedMm: number | null,
+  location: string,
+  onLocation: (value: string) => void
+) {
+  const fitted = fixedMm != null ? layoutLegendAtFont(source, plate, fixedMm) : null;
+  const overflows = fitted != null && !fitted.fits;
+  return (
+    <li key={source + "-" + index} className="flex gap-3 text-sm">
+      <span
+        className={
+          overflows
+            ? "mt-0.5 shrink-0 border-2 border-amber-300 bg-white [&_svg]:h-auto [&_svg]:w-full"
+            : "mt-0.5 shrink-0 border border-white/20 bg-white [&_svg]:h-auto [&_svg]:w-full"
+        }
+        style={{ width: Math.min(220, Math.max(72, plate.widthMm * 4)) }}
+        dangerouslySetInnerHTML={{ __html: proofPlateSvg(plate) }}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{source.split("\n")[0] || "Untitled plate"}</span>
+        <span className="block text-xs text-white/50">
+          {plate.widthMm} × {plate.heightMm} mm · {plate.colourLabel}
+          {plate.adhesive3m ? " · 3M adhesive" : ""} · qty {plate.qty} · {formatAud(plate.unitCents)}{" "}
+          each · {formatAud(plate.lineCents)}
+        </span>
+        {overflows ? (
+          <p role="alert" className="mt-1 text-xs font-medium text-amber-200">
+            Does not fit at {fixedMm} mm, even on three lines. The text was not shrunk.
+          </p>
+        ) : null}
+        <label className="mt-2 flex flex-col gap-1 text-xs text-white/55">
+          Location
+          <input
+            value={location}
+            onChange={(event) => onLocation(event.target.value)}
+            placeholder="e.g. DB room"
+            maxLength={80}
+            className="h-8 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
+          />
+        </label>
+      </span>
+    </li>
+  );
 }
 
 function proofColumnLabel(summary: ProofSummary | undefined) {
@@ -111,6 +164,7 @@ export function OrdersBoard({
   const [copiedProof, setCopiedProof] = useState(false);
   const [origin, setOrigin] = useState("");
   const [uniformText, setUniformText] = useState(false);
+  const [uniformTextMm, setUniformTextMm] = useState("");
 
   const visible = useMemo(
     () => (filter === "ALL" ? orders : orders.filter((order) => order.status === filter)),
@@ -124,7 +178,8 @@ export function OrdersBoard({
     setNote(order.note);
     setTrackingLink(order.trackingLink);
     setLocations(order.plates.map((plate) => plate.location ?? ""));
-    setUniformText(order.uniformTextSize === true);
+    setUniformText(order.uniformTextSize === true || order.uniformTextMm != null);
+    setUniformTextMm(order.uniformTextMm != null ? String(order.uniformTextMm) : "");
     setInvoiceUrl("");
     setSaveError(null);
     setSaved(false);
@@ -157,6 +212,11 @@ export function OrdersBoard({
 
   async function saveOrder() {
     if (!selected) return;
+    const fixedMm = uniformText && uniformTextMm.trim() ? cleanUniformTextMm(uniformTextMm) : null;
+    if (uniformText && uniformTextMm.trim() && fixedMm == null) {
+      setSaveError("Fixed text size must be between 1 and 40 mm.");
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     setSaved(false);
@@ -169,7 +229,8 @@ export function OrdersBoard({
           note,
           trackingLink,
           plateLocations: locations,
-          uniformTextSize: uniformText,
+          uniformTextSize: uniformText && fixedMm == null,
+          uniformTextMm: uniformText ? fixedMm : null,
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -190,7 +251,8 @@ export function OrdersBoard({
         )
       );
       setLocations(savedOrder.plates.map((plate) => plate.location ?? ""));
-      setUniformText(savedOrder.uniformTextSize === true);
+      setUniformText(savedOrder.uniformTextSize === true || savedOrder.uniformTextMm != null);
+      setUniformTextMm(savedOrder.uniformTextMm != null ? String(savedOrder.uniformTextMm) : "");
       if (payload.proof) {
         setProofs((current) => ({
           ...current,
@@ -641,15 +703,30 @@ export function OrdersBoard({
                   }}
                 />
                 <span>
-                  <span className="block font-medium">Uniform text size per plate size</span>
+                  <span className="block font-medium">Uniform text size</span>
                   <span className="mt-1 block text-xs text-white/50">
-                    Every plate of the same dimensions uses the largest text that still fits
-                    every legend of that size. Turning this on replaces a proof that was already
-                    sent.
+                    Leave the size blank to share one text size within each plate size. Enter a
+                    size, such as 3.4, to use it on every plate. A legend that still cannot fit
+                    is not shrunk. Saving this replaces a proof that was already sent.
                   </span>
                 </span>
               </label>
               {uniformText ? (
+                <label className="mt-3 flex flex-col gap-1 text-xs text-white/55">
+                  Fixed size for every plate (mm)
+                  <input
+                    value={uniformTextMm}
+                    onChange={(event) => {
+                      setUniformTextMm(event.target.value);
+                      setSaved(false);
+                    }}
+                    inputMode="decimal"
+                    placeholder="Per plate size"
+                    className="h-9 w-36 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
+                  />
+                </label>
+              ) : null}
+              {uniformText && !uniformTextMm.trim() ? (
                 <ul className="mt-2 text-xs text-white/55">
                   {uniformTextGroups(selected.plates).map((group) => (
                     <li key={`${group.widthMm}x${group.heightMm}`}>
@@ -662,43 +739,22 @@ export function OrdersBoard({
                 </ul>
               ) : null}
               <ul className="mt-2 flex flex-col gap-3">
-                {previewPlates(selected.plates, locations, uniformText).map((plate, index) => (
-                  <li key={`${plate.text}-${index}`} className="flex gap-3 text-sm">
-                    <span
-                      className="mt-0.5 shrink-0 border border-white/20 bg-white [&_svg]:h-auto [&_svg]:w-full"
-                      style={{ width: Math.min(160, Math.max(72, plate.widthMm * 4)) }}
-                      dangerouslySetInnerHTML={{ __html: proofPlateSvg(plate) }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">
-                        {selected.plates[index]?.text.split("\n")[0] || "Untitled plate"}
-                      </span>
-                      <span className="block text-xs text-white/50">
-                        {plate.widthMm} × {plate.heightMm} mm · {plate.colourLabel}
-                        {plate.adhesive3m ? " · 3M adhesive" : ""} · qty {plate.qty} ·{" "}
-                        {formatAud(plate.unitCents)} each · {formatAud(plate.lineCents)}
-                      </span>
-                      <label className="mt-2 flex flex-col gap-1 text-xs text-white/55">
-                        Location
-                        <input
-                          value={locations[index] ?? ""}
-                          onChange={(event) => {
-                            const next = selected.plates.map((_, plateIndex) =>
-                              plateIndex === index
-                                ? event.target.value
-                                : locations[plateIndex] ?? ""
-                            );
-                            setLocations(next);
-                            setSaved(false);
-                          }}
-                          placeholder="e.g. DB room"
-                          maxLength={80}
-                          className="h-8 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
-                        />
-                      </label>
-                    </span>
-                  </li>
-                ))}
+                {previewPlates(selected.plates, locations, uniformText, cleanUniformTextMm(uniformTextMm)).map((plate, index) =>
+                  orderPlateItem(
+                    plate,
+                    index,
+                    selected.plates[index]?.text ?? plate.text,
+                    uniformText ? cleanUniformTextMm(uniformTextMm) : null,
+                    locations[index] ?? "",
+                    (value) => {
+                      const next = selected.plates.map((_, plateIndex) =>
+                        plateIndex === index ? value : locations[plateIndex] ?? ""
+                      );
+                      setLocations(next);
+                      setSaved(false);
+                    }
+                  )
+                )}
               </ul>
               <p className="mt-3 text-right font-mono text-sm text-white/70">
                 Plates {formatAud(selected.subtotalCents)} · Shipping {formatAud(selected.shippingCents)} ·{" "}

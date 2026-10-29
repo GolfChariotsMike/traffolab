@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ORDER_STORAGE_KEY,
+  UNIFORM_TEXT_MM_STORAGE_KEY,
   UNIFORM_TEXT_STORAGE_KEY,
   colourPairOf,
   designSummary,
@@ -73,6 +74,10 @@ export function OrderSummary() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(UNIFORM_TEXT_STORAGE_KEY) === "1";
   });
+  const [uniformTextMm, setUniformTextMm] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(UNIFORM_TEXT_MM_STORAGE_KEY) ?? "";
+  });
   const quote = quoteOrder(plateFields(lines), shipping);
 
   const persistLines = (next: OrderLine[]) => {
@@ -117,6 +122,7 @@ export function OrderSummary() {
           shippingMethodId: shipping,
           returnOrigin: window.location.origin,
           uniformTextSize: uniformText,
+          uniformTextMm: uniformText ? uniformTextMm : null,
           lines: lines.map((line) => ({
             widthMm: line.design.widthMm,
             heightMm: line.design.heightMm,
@@ -293,10 +299,28 @@ export function OrderSummary() {
               <span>
                 <span className="block text-paper">Uniform text size per plate size</span>
                 <span className="mt-1 block text-xs text-paper/55">
-                  Plates of the same dimensions share one text size, small enough that every
-                  legend still fits. The proof and the cut file use that size.
+                  Plates of the same dimensions share one text size. Enter a size to use it on
+                  every plate. A legend that cannot fit is not shrunk. The proof and the cut
+                  file use that size.
                 </span>
                 {uniformText ? (
+                  <input
+                    value={uniformTextMm}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setUniformTextMm(next);
+                      try {
+                        window.localStorage.setItem(UNIFORM_TEXT_MM_STORAGE_KEY, next);
+                      } catch {
+                        // Pay now still sends the field.
+                      }
+                    }}
+                    inputMode="decimal"
+                    placeholder="Fixed mm, or blank"
+                    className="mt-2 h-8 w-40 bg-charcoal px-2 text-xs"
+                  />
+                ) : null}
+                {uniformText && !uniformTextMm.trim() ? (
                   <span className="mt-1 block text-xs text-paper/70">
                     {uniformTextGroups(
                       lines.map((line) => ({

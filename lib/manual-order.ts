@@ -4,7 +4,7 @@
  * entered beside the file. Nothing is stored unless every row is valid.
  */
 
-import { COLOUR_PAIRS, applyUniformTextSize } from "@/lib/label-design";
+import { COLOUR_PAIRS, applyFixedTextSize, applyUniformTextSize } from "@/lib/label-design";
 import {
   TEMPLATE_CSV,
   loadCsvDocument,
@@ -13,6 +13,7 @@ import {
   resolveMapping,
 } from "@/lib/order-csv";
 import {
+  cleanUniformTextMm,
   type NewPaidOrder,
   type PaymentSource,
   type StoredPlate,
@@ -169,7 +170,10 @@ export function parseManualOrder(body: unknown, now = new Date()): ManualOrderOk
                 })),
               };
             });
-            if (raw.uniformTextSize === true) {
+            const fixedMm = cleanUniformTextMm(raw.uniformTextMm);
+            if (fixedMm != null) {
+              plates = applyFixedTextSize(plates, fixedMm);
+            } else if (raw.uniformTextSize === true) {
               plates = applyUniformTextSize(plates);
             }
             subtotalCents = quote.subtotalCents;
@@ -222,7 +226,8 @@ export function parseManualOrder(body: unknown, now = new Date()): ManualOrderOk
       note,
       trackingLink: "",
       plates,
-      uniformTextSize: raw.uniformTextSize === true,
+      uniformTextSize: cleanUniformTextMm(raw.uniformTextMm) == null && raw.uniformTextSize === true,
+      uniformTextMm: cleanUniformTextMm(raw.uniformTextMm) ?? undefined,
     },
   };
 }

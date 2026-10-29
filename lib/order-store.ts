@@ -73,6 +73,7 @@ type OrderRow = {
   stripe_livemode: boolean;
   payment_source?: string | null;
   uniform_text_size?: boolean | null;
+  uniform_text_mm?: number | string | null;
   note: string;
   tracking_link: string;
   plates: SavedOrder["plates"] | string;
@@ -120,10 +121,29 @@ function rowToOrder(row: OrderRow): SavedOrder {
     note: row.note,
     trackingLink: row.tracking_link,
     plates: platesOf(row.plates),
-    uniformTextSize:
-      row.uniform_text_size === true ||
-      platesOf(row.plates).some((plate) => plate.uniformTextSize === true),
+    ...uniformFieldsFrom(row),
   };
+}
+
+function uniformFieldsFrom(row: OrderRow): { uniformTextSize: boolean; uniformTextMm?: number } {
+  const plates = platesOf(row.plates);
+  const fromPlate = plates.find((plate) => typeof plate.uniformTextMm === "number")?.uniformTextMm;
+  const fromColumn = mmOrUndefined(row.uniform_text_mm);
+  const uniformTextMm = fromPlate ?? fromColumn;
+  if (uniformTextMm != null) return { uniformTextSize: false, uniformTextMm };
+  return {
+    uniformTextSize:
+      row.uniform_text_size === true || plates.some((plate) => plate.uniformTextSize === true),
+  };
+}
+
+function mmOrUndefined(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 async function insertOrder(sql: Sql, order: NewPaidOrder): Promise<SavedOrder> {
@@ -175,15 +195,21 @@ async function insertOrder(sql: Sql, order: NewPaidOrder): Promise<SavedOrder> {
     RETURNING *
   `;
   const saved = rowToOrder(rows[0]);
-  await rememberUniformTextSize(sql, saved.id, saved.uniformTextSize === true);
+  await rememberUniformTextSize(sql, saved.id, saved.uniformTextSize === true, saved.uniformTextMm);
   return saved;
 }
 
-async function rememberUniformTextSize(sql: Sql | postgres.TransactionSql, orderId: string, enabled: boolean) {
+async function rememberUniformTextSize(
+  sql: Sql | postgres.TransactionSql,
+  orderId: string,
+  enabled: boolean,
+  fontMm?: number
+) {
   const write = async (query: Sql | postgres.TransactionSql) => {
     await query`
       UPDATE trafflabels_orders
-      SET uniform_text_size = ${enabled}
+      SET uniform_text_size = ${enabled},
+          uniform_text_mm = ${fontMm ?? null}
       WHERE id = ${orderId}
     `;
   };
@@ -283,7 +309,7 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
             WHERE order_number = ${orderNumber}
             RETURNING *
           `;
-          await rememberUniformTextSize(tx, next.id, next.uniformTextSize === true);
+          await rememberUniformTextSize(tx, next.id, next.uniformTextSize === true, next.uniformTextMm);
           if (platesApprovalHash(next.plates) !== beforeHash) {
             try {
               await tx`

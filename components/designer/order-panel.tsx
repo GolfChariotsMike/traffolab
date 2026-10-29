@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  UNIFORM_TEXT_MM_STORAGE_KEY,
   UNIFORM_TEXT_STORAGE_KEY,
   colourPairOf,
   designSummary,
@@ -36,6 +37,10 @@ export function OrderPanel({
   const [uniformText, setUniformText] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(UNIFORM_TEXT_STORAGE_KEY) === "1";
+  });
+  const [uniformTextMm, setUniformTextMm] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(UNIFORM_TEXT_MM_STORAGE_KEY) ?? "";
   });
   const sharedSizes = uniformText
     ? uniformTextGroups(
@@ -167,9 +172,26 @@ export function OrderPanel({
           <span>
             <span className="block text-paper">Uniform text size per plate size</span>
             <span className="mt-1 block text-xs text-paper/50">
-              Plates of the same dimensions share one text size, small enough that every legend
-              still fits.
+              Plates of the same dimensions share one text size. Enter a size to use it on every
+              plate. A legend that cannot fit is not shrunk.
             </span>
+            {uniformText ? (
+              <input
+                value={uniformTextMm}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setUniformTextMm(next);
+                  try {
+                    window.localStorage.setItem(UNIFORM_TEXT_MM_STORAGE_KEY, next);
+                  } catch {
+                    // Checkout reads the same key.
+                  }
+                }}
+                inputMode="decimal"
+                placeholder="Fixed mm, or blank"
+                className="mt-2 h-8 w-36 bg-charcoal px-2 text-xs"
+              />
+            ) : null}
             {sharedSizes.length > 0 ? (
               <span className="mt-1 block text-xs text-paper/60">
                 {sharedSizes

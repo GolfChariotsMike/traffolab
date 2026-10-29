@@ -137,7 +137,10 @@ export function canonicalPlates(plates: StoredPlate[]) {
       fontSize: object.fontSize,
       align: object.align,
     })),
-    ...(plate.uniformTextSize === true ? { uniformTextSize: true as const } : {}),
+    ...(typeof plate.uniformTextMm === "number" ? { uniformTextMm: plate.uniformTextMm } : {}),
+    ...(plate.uniformTextSize === true && typeof plate.uniformTextMm !== "number"
+      ? { uniformTextSize: true as const }
+      : {}),
   }));
 }
 

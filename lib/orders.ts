@@ -4,7 +4,11 @@
  * A paid Checkout Session is stored as NEW.
  */
 
-import { applyUniformTextSize, restoreIndividualLegendFit } from "@/lib/label-design";
+import {
+  applyFixedTextSize,
+  applyUniformTextSize,
+  restoreIndividualLegendFit,
+} from "@/lib/label-design";
 import type { ShippingMethodId } from "@/lib/pricing";
 
 export const ORDER_STATUSES = ["NEW", "CUT", "READY TO SHIP", "SHIPPED"] as const;
@@ -43,6 +47,8 @@ export type StoredPlate = {
    * Omitted on individually fitted plates so existing proof hashes stay put.
    */
   uniformTextSize?: boolean;
+  /** Set when every plate in the order uses this exact em size. */
+  uniformTextMm?: number;
 };
 
 export type CheckoutDraft = {
@@ -90,6 +96,8 @@ export type SavedOrder = {
   plates: StoredPlate[];
   /** One text size for every plate of the same dimensions. Off leaves each legend to fill its own plate. */
   uniformTextSize?: boolean;
+  /** When set, every plate in the order uses this em size, whatever its dimensions. */
+  uniformTextMm?: number;
 };
 
 export type NewPaidOrder = Omit<SavedOrder, "orderNumber">;
@@ -114,6 +122,8 @@ export type OrderPatch = {
   plateLocations?: string[];
   /** Turn the shared text size on or off. Changing it rewrites the legends. */
   uniformTextSize?: boolean;
+  /** Fixed em size for every plate. Null clears it. Omit to leave the current size. */
+  uniformTextMm?: number | null;
 };
 
 export class OrderUpdateError extends Error {
@@ -322,12 +332,25 @@ export function parseOrderPatch(
     patch.uniformTextSize = raw.uniformTextSize;
   }
 
+  if ("uniformTextMm" in raw) {
+    if (raw.uniformTextMm == null || raw.uniformTextMm === "") {
+      patch.uniformTextMm = null;
+    } else {
+      const mm = cleanUniformTextMm(raw.uniformTextMm);
+      if (mm == null) {
+        return { ok: false, error: "Fixed text size must be between 1 and 40 mm." };
+      }
+      patch.uniformTextMm = mm;
+    }
+  }
+
   if (
     patch.status === undefined &&
     patch.note === undefined &&
     patch.trackingLink === undefined &&
     patch.plateLocations === undefined &&
-    patch.uniformTextSize === undefined
+    patch.uniformTextSize === undefined &&
+    patch.uniformTextMm === undefined
   ) {
     return { ok: false, error: "Nothing to update." };
   }
@@ -345,12 +368,26 @@ export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new 
         location: patch.plateLocations?.[index] ?? "",
       }))
     : order.plates;
-  const uniformTextSize =
+  const fixedMm =
+    typeof patch.uniformTextMm === "number"
+      ? patch.uniformTextMm
+      : patch.uniformTextMm === null || patch.uniformTextSize === false
+        ? undefined
+        : order.uniformTextMm;
+  let uniformTextSize =
     patch.uniformTextSize !== undefined ? patch.uniformTextSize : order.uniformTextSize === true;
-  if (patch.uniformTextSize === true) {
+  if (fixedMm != null) {
+    plates = applyFixedTextSize(plates, fixedMm);
+    uniformTextSize = false;
+  } else if (patch.uniformTextSize === true) {
     plates = applyUniformTextSize(plates);
-  } else if (patch.uniformTextSize === false && order.uniformTextSize === true) {
+    uniformTextSize = true;
+  } else if (
+    (patch.uniformTextSize === false || patch.uniformTextMm === null) &&
+    (order.uniformTextSize === true || order.uniformTextMm != null)
+  ) {
     plates = restoreIndividualLegendFit(plates);
+    uniformTextSize = false;
   }
   return {
     ...order,
@@ -359,9 +396,18 @@ export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new 
     trackingLink:
       patch.trackingLink !== undefined ? patch.trackingLink : order.trackingLink,
     uniformTextSize,
+    uniformTextMm: fixedMm,
     plates,
     updatedAt: now.toISOString(),
   };
+}
+
+export function cleanUniformTextMm(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const rounded = Math.round(parsed * 10) / 10;
+  if (rounded < 1 || rounded > 40) return null;
+  return rounded;
 }
 
 function blankShipping(name: string): ShippingAddress {

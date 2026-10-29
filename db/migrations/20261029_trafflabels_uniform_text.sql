@@ -12,8 +12,14 @@
 ALTER TABLE public.trafflabels_orders
   ADD COLUMN IF NOT EXISTS uniform_text_size boolean NOT NULL DEFAULT false;
 
+ALTER TABLE public.trafflabels_orders
+  ADD COLUMN IF NOT EXISTS uniform_text_mm double precision;
+
 COMMENT ON COLUMN public.trafflabels_orders.uniform_text_size IS
-  'When true, plates of the same dimensions share one text size.';
+  'When true, plates of the same dimensions share one text size. Ignored when uniform_text_mm is set.';
+
+COMMENT ON COLUMN public.trafflabels_orders.uniform_text_mm IS
+  'When set, every plate in the order uses this em size in millimetres.';
 
 ALTER TABLE public.trafflabels_orders ENABLE ROW LEVEL SECURITY;
 

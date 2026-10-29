@@ -30,6 +30,7 @@ export function ImportOrderDialog({
   const [shippingMethodId, setShippingMethodId] = useState<"standard" | "express">("standard");
   const [note, setNote] = useState("");
   const [uniformTextSize, setUniformTextSize] = useState(false);
+  const [uniformTextMm, setUniformTextMm] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -49,8 +50,23 @@ export function ImportOrderDialog({
         shippingMethodId,
         note,
         uniformTextSize,
+        uniformTextMm: uniformTextSize ? uniformTextMm : "",
       }),
-    [csv, name, email, phone, line1, line2, city, state, postalCode, shippingMethodId, note, uniformTextSize]
+    [
+      csv,
+      name,
+      email,
+      phone,
+      line1,
+      line2,
+      city,
+      state,
+      postalCode,
+      shippingMethodId,
+      note,
+      uniformTextSize,
+      uniformTextMm,
+    ]
   );
 
   const errors: ManualOrderError[] = draft.ok ? [] : draft.errors;
@@ -88,6 +104,7 @@ export function ImportOrderDialog({
           shippingMethodId,
           note,
           uniformTextSize,
+          uniformTextMm: uniformTextSize ? uniformTextMm : null,
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -168,11 +185,23 @@ export function ImportOrderDialog({
           <span>
             <span className="block font-medium">Uniform text size per plate size</span>
             <span className="mt-1 block text-xs text-white/50">
-              Plates of the same dimensions share the largest text that still fits every legend
-              of that size.
+              Plates of the same dimensions share one text size. Enter a millimetre size to use
+              it on every plate instead.
             </span>
           </span>
         </label>
+        {uniformTextSize ? (
+          <label className="mt-3 flex flex-col gap-1 text-sm">
+            Fixed size for every plate (mm)
+            <input
+              className={fieldClass}
+              value={uniformTextMm}
+              onChange={(event) => setUniformTextMm(event.target.value)}
+              inputMode="decimal"
+              placeholder="Per plate size"
+            />
+          </label>
+        ) : null}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm sm:col-span-2">

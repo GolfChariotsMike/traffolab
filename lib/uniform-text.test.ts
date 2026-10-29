@@ -4,8 +4,11 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
+  applyFixedTextSize,
   applyUniformTextSize,
   fitTextToPlate,
+  largestFixedTextMm,
+  layoutLegendAtFont,
   legendFitFontMm,
   restoreIndividualLegendFit,
   uniformTextGroups,
@@ -21,6 +24,7 @@ const migration = readFileSync(
   "utf8"
 );
 assert.match(migration, /ADD COLUMN IF NOT EXISTS uniform_text_size boolean NOT NULL DEFAULT false/);
+assert.match(migration, /ADD COLUMN IF NOT EXISTS uniform_text_mm double precision/);
 assert.match(migration, /ENABLE ROW LEVEL SECURITY/);
 assert.match(migration, /GRANT ALL ON TABLE public\.trafflabels_orders TO service_role/);
 assert.match(migration, /REVOKE TRUNCATE, REFERENCES, TRIGGER ON TABLE public\.trafflabels_orders FROM anon/);
@@ -174,5 +178,43 @@ assert.equal(turnedOn?.uniformTextSize, true);
 assert.equal(turnedOn?.plates[0].objects[0].fontSize, turnedOn?.plates[1].objects[0].fontSize);
 const opened = await store.openProof(proof.token);
 assert.equal(opened?.proof.status, "superseded");
+
+const fixed = applyFixedTextSize([short, large], 3.4);
+assert.equal(fixed[0].objects[0].fontSize, 3.4);
+assert.equal(fixed[1].objects[0].fontSize, 3.4);
+assert.equal(fixed[0].uniformTextMm, 3.4);
+assert.equal(fixed[0].uniformTextSize, undefined);
+assert.notEqual(platesApprovalHash(fixed), platesApprovalHash(shared));
+const generator = applyFixedTextSize(
+  [plate("DB 12 AND GENERATOR LIGHTING", 40, 20)],
+  3.4
+);
+assert.equal(generator[0].objects[0].fontSize, 3.4);
+assert.equal(generator[0].objects[0].text.split("\n").length, 3);
+const overflow = layoutLegendAtFont("WWWWWWWWWWWWWWWWWWWW", { widthMm: 20, heightMm: 10 }, 10);
+assert.equal(overflow.fits, false);
+const kept = applyFixedTextSize([plate("WWWWWWWWWWWWWWWWWWWW", 20, 10, 4)], 10);
+assert.equal(kept[0].objects[0].fontSize, 10);
+assert.equal(
+  largestFixedTextMm([
+    { widthMm: 20, heightMm: 10, text: "AC" },
+    { widthMm: 40, heightMm: 20, text: "UPS" },
+  ]),
+  legendFitFontMm("AC", { widthMm: 20, heightMm: 10 })
+);
+
+const fixedOrder = await store.insertPaidOrder({
+  ...paid,
+  id: crypto.randomUUID(),
+  stripeSessionId: `manual:${crypto.randomUUID()}`,
+  plates: [short, large],
+});
+const fixedProof = await store.createProof(fixedOrder.orderNumber, { invoiceUrl: "" });
+assert.ok(fixedProof);
+const fixedSaved = await store.updateOrder(fixedOrder.orderNumber, { uniformTextMm: 3.4 });
+assert.equal(fixedSaved?.uniformTextMm, 3.4);
+assert.equal(fixedSaved?.plates[0].objects[0].fontSize, 3.4);
+assert.equal(fixedSaved?.plates[1].objects[0].fontSize, 3.4);
+assert.equal((await store.openProof(fixedProof.token))?.proof.status, "superseded");
 
 console.log("lib/uniform-text.test.ts: ok");
