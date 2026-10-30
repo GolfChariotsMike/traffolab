@@ -507,7 +507,17 @@ for (const placement of longLegends.sheets[0].placements) {
   assert.ok(box.top + box.height <= 10.06, `${laid.text} bottom ${box.top + box.height}`);
 }
 const longSvg = serializeNestSheetSvg(1001, longLegends.sheets[0]);
-assert.equal(longSvg.match(/<tspan /g)?.length, 4);
+assert.doesNotMatch(longSvg, /<tspan|dy=/);
+{
+  // LightBurn ignores tspan dy, so each line must be its own <text> with an absolute y.
+  const ys = [...longSvg.matchAll(/<text id="engrave-[^"]*-line(\d)"[^>]* y="([^"]+)"/g)];
+  assert.equal(ys.length, 4);
+  assert.equal(ys[0][1], "1");
+  assert.equal(ys[1][1], "2");
+  const y1 = Number(ys[0][2]);
+  const y2 = Number(ys[1][2]);
+  assert.ok(y2 - y1 > 2.5, `second line sits below the first (${y1} -> ${y2})`);
+}
 assert.match(longSvg, />ADMIN-AC7</);
 assert.match(longSvg, />THEATRE</);
 assert.match(longSvg, />ADMIN-AC8</);

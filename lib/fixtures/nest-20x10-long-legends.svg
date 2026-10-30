@@ -9,10 +9,10 @@
   <!-- When a plate is turned, the group transform turns the legend with the cut. -->
   <g id="engrave" data-layer="engrave">
     <g id="plate-L1-c1" data-rotation="0" transform="translate(0, 0)">
-      <text id="engrave-text-1-s1-L1-c1" x="10" y="4.3" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle"><tspan x="10" dy="0">ADMIN-AC7</tspan><tspan x="10" dy="3.5">THEATRE</tspan></text>
+      <text id="engrave-text-1-s1-L1-c1-line1" x="10" y="4.3" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle">ADMIN-AC7</text><text id="engrave-text-1-s1-L1-c1-line2" x="10" y="7.75" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle">THEATRE</text>
     </g>
     <g id="plate-L2-c1" data-rotation="0" transform="translate(20, 0)">
-      <text id="engrave-text-1-s1-L2-c1" x="10" y="4.3" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle"><tspan x="10" dy="0">ADMIN-AC8</tspan><tspan x="10" dy="3.5">PARMELIA</tspan></text>
+      <text id="engrave-text-1-s1-L2-c1-line1" x="10" y="4.3" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle">ADMIN-AC8</text><text id="engrave-text-1-s1-L2-c1-line2" x="10" y="7.75" fill="#000000" stroke="none" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="400" text-anchor="middle">PARMELIA</text>
     </g>
   </g>
   <g id="cut" data-layer="cut">

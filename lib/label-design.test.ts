@@ -553,8 +553,9 @@ function assertFills(
   });
   assert.match(
     theatreSvg,
-    /<tspan x="[^"]+" dy="0">ADMIN-AC7<\/tspan><tspan x="[^"]+" dy="[^"]+">THEATRE<\/tspan>/
+    /<text id="engrave-[^"]+-line1" x="[^"]+" y="[^"]+"[^>]*>ADMIN-AC7<\/text><text id="engrave-[^"]+-line2" x="[^"]+" y="[^"]+"[^>]*>THEATRE<\/text>/
   );
+  assert.doesNotMatch(theatreSvg, /<tspan|dy=/);
   assert.match(theatreSvg, /font-weight="400"/);
   assert.match(theatreSvg, /font-family="Arial, Helvetica, sans-serif"/);
   const theatreEngrave = theatreSvg.split('id="engrave"')[1] ?? "";
