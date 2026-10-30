@@ -1204,14 +1204,15 @@ function escapeXml(value: string) {
 function serializeTextElement(object: TextObject, fill: string, plate: PlateSize) {
   const laid = engraveLayout(object, plate);
   const lines = textLines(laid.text);
-  const tspans = lines
+  const step = laid.fontSize * LINE_HEIGHT;
+  // Separate <text> per line with absolute y: LightBurn ignores tspan dy.
+  return lines
     .map((line, index) => {
-      const dy = index === 0 ? 0 : roundMm(laid.fontSize * LINE_HEIGHT);
-      return `<tspan x="${laid.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
+      const y = Math.round((laid.y + index * step) * 1000) / 1000;
+      const id = lines.length > 1 ? `engrave-${laid.id}-line${index + 1}` : `engrave-${laid.id}`;
+      return `<text id="${escapeXml(id)}" x="${laid.x}" y="${y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
     })
     .join("");
-
-  return `<text id="engrave-${escapeXml(laid.id)}" x="${laid.x}" y="${laid.y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${tspans}</text>`;
 }
 
 export function serializeDesignJson(design: LabelDesign) {

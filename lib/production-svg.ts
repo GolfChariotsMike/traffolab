@@ -47,14 +47,17 @@ export function serializeEngraveText(
 ) {
   const laid = plate ? engraveLayout(object, plate) : object;
   const lines = laid.text.length > 0 ? laid.text.split("\n") : [""];
-  const tspans = lines
+  const id = `engrave-${laid.id}${idSuffix}`;
+  const step = laid.fontSize * LINE_HEIGHT;
+  // One <text> per line with an absolute y. LightBurn ignores tspan dy, which stacked
+  // every wrapped line on the first baseline.
+  return lines
     .map((line, index) => {
-      const dy = index === 0 ? 0 : Math.round(laid.fontSize * LINE_HEIGHT * 10) / 10;
-      return `<tspan x="${laid.x}" dy="${dy}">${escapeXml(line || " ")}</tspan>`;
+      const y = Math.round((laid.y + index * step) * 1000) / 1000;
+      const lineId = lines.length > 1 ? `${id}-line${index + 1}` : id;
+      return `<text id="${escapeXml(lineId)}" x="${laid.x}" y="${y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
     })
     .join("");
-  const id = `engrave-${laid.id}${idSuffix}`;
-  return `<text id="${escapeXml(id)}" x="${laid.x}" y="${laid.y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${tspans}</text>`;
 }
 
 export function serializeProductionSvg(
