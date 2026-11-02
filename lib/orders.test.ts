@@ -11,6 +11,7 @@ import {
   buildPaidOrder,
   formatPostage,
   orderItemCount,
+  plateSizeSummary,
   parseOrderPatch,
   shouldFulfillCheckout,
   transitionStatus,
@@ -104,6 +105,19 @@ assert.equal(paid.plates[0].text, "MAIN SWITCH");
 assert.equal(paid.plates[0].widthMm, 60);
 assert.equal(paid.plates[1].heightMm, 25);
 assert.equal(orderItemCount(paid.plates), 3);
+assert.equal(
+  plateSizeSummary(paid.plates),
+  "3 plates: 2 × 60×20 mm, 1 × 100×25 mm"
+);
+assert.equal(
+  plateSizeSummary([
+    { widthMm: 20, heightMm: 10, qty: 20 },
+    { widthMm: 40, heightMm: 20, qty: 11 },
+  ]),
+  "31 plates: 20 × 20×10 mm, 11 × 40×20 mm"
+);
+assert.equal(plateSizeSummary([{ widthMm: 20, heightMm: 10, qty: 1 }]), "1 plate: 1 × 20×10 mm");
+assert.equal(plateSizeSummary([]), "0 plates");
 assert.match(formatPostage(paid), /12 Workshop Road/);
 assert.match(formatPostage(paid), /Australia/);
 
