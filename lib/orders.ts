@@ -200,6 +200,29 @@ export function orderItemCount(plates: Array<{ qty: number }>) {
   return plates.reduce((sum, plate) => sum + (Number.isFinite(plate.qty) ? plate.qty : 0), 0);
 }
 
+/** One line for the orders board, e.g. "31 plates: 20 × 20×10 mm, 11 × 40×20 mm". */
+export function plateSizeSummary(
+  plates: Array<{ widthMm: number; heightMm: number; qty: number }>
+) {
+  const groups: { widthMm: number; heightMm: number; qty: number }[] = [];
+  for (const plate of plates) {
+    const qty = Number.isFinite(plate.qty) ? plate.qty : 0;
+    if (qty === 0) continue;
+    const found = groups.find(
+      (group) => group.widthMm === plate.widthMm && group.heightMm === plate.heightMm
+    );
+    if (found) found.qty += qty;
+    else groups.push({ widthMm: plate.widthMm, heightMm: plate.heightMm, qty });
+  }
+  const total = groups.reduce((sum, group) => sum + group.qty, 0);
+  const noun = total === 1 ? "plate" : "plates";
+  if (groups.length === 0) return `0 ${noun}`;
+  const parts = groups.map(
+    (group) => `${group.qty} × ${group.widthMm}×${group.heightMm} mm`
+  );
+  return `${total} ${noun}: ${parts.join(", ")}`;
+}
+
 export function countryLabel(code: string) {
   if (code.trim().toUpperCase() === "AU") return "Australia";
   return code.trim();

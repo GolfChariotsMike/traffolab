@@ -20,6 +20,7 @@ import {
   formatPerthDateTime,
   formatPostage,
   orderItemCount,
+  plateSizeSummary,
   paymentSourceLabel,
   stripeDashboardPaymentUrl,
   type OrderStatus,
@@ -166,6 +167,7 @@ export function OrdersBoard({
   const [origin, setOrigin] = useState("");
   const [uniformText, setUniformText] = useState(false);
   const [uniformTextMm, setUniformTextMm] = useState("");
+  const [platesOpen, setPlatesOpen] = useState(false);
 
   const visible = useMemo(
     () => (filter === "ALL" ? orders : orders.filter((order) => order.status === filter)),
@@ -181,6 +183,7 @@ export function OrdersBoard({
     setLocations(order.plates.map((plate) => plate.location ?? ""));
     setUniformText(order.uniformTextSize === true || order.uniformTextMm != null);
     setUniformTextMm(order.uniformTextMm != null ? String(order.uniformTextMm) : "");
+    setPlatesOpen(false);
     setInvoiceUrl("");
     setSaveError(null);
     setSaved(false);
@@ -699,9 +702,21 @@ export function OrdersBoard({
             </section>
 
             <section className="mt-5">
-              <h3 className="text-sm font-semibold">
-                Items ({orderItemCount(selected.plates)})
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold">
+                  Items ({orderItemCount(selected.plates)})
+                </h3>
+                <button
+                  type="button"
+                  className="rounded-full border border-white/25 px-3 py-1 text-sm text-white/90 hover:bg-white/10"
+                  aria-expanded={platesOpen}
+                  aria-controls="order-plate-list"
+                  onClick={() => setPlatesOpen((open) => !open)}
+                >
+                  {platesOpen ? "Hide plates" : "Show plates"}
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-white/80">{plateSizeSummary(selected.plates)}</p>
               <label className="mt-3 flex items-start gap-3 text-sm">
                 <input
                   type="checkbox"
@@ -748,7 +763,8 @@ export function OrdersBoard({
                   ))}
                 </ul>
               ) : null}
-              <ul className="mt-2 flex flex-col gap-3">
+              {platesOpen ? (
+              <ul id="order-plate-list" className="mt-2 flex flex-col gap-3">
                 {previewPlates(selected.plates, locations, uniformText, cleanUniformTextMm(uniformTextMm)).map((plate, index) =>
                   orderPlateItem(
                     plate,
@@ -766,6 +782,7 @@ export function OrdersBoard({
                   )
                 )}
               </ul>
+              ) : null}
               <p className="mt-3 text-right font-mono text-sm text-white/70">
                 Plates {formatAud(selected.subtotalCents)} · Shipping {formatAud(selected.shippingCents)} ·{" "}
                 <span className="text-paper">{formatAud(selected.totalCents)}</span>
