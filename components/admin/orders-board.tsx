@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Download, X } from "lucide-react";
 import { ImportOrderDialog } from "@/components/admin/import-order-dialog";
+import { OrderCosts } from "@/components/admin/order-costs";
 import { Button } from "@/components/ui/button";
 import {
   applyFixedTextSize,
@@ -346,6 +347,9 @@ export function OrdersBoard({
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
           <p className="font-heading text-lg font-semibold tracking-tight">TraffLabels</p>
           <div className="flex items-center gap-3">
+            <a href="/admin/costs/" className="text-sm text-[#fee100] hover:underline">
+              Costs
+            </a>
             <a
               href="/admin/account-applications/"
               className="text-sm text-[#fee100] hover:underline"
@@ -767,6 +771,8 @@ export function OrdersBoard({
                 <span className="text-paper">{formatAud(selected.totalCents)}</span>
               </p>
             </section>
+
+            <OrderCosts key={selected.orderNumber} orderNumber={selected.orderNumber} totalCents={selected.totalCents} />
 
             <label className="mt-5 flex flex-col gap-1.5 text-sm">
               Status
