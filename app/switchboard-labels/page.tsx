@@ -10,18 +10,36 @@ import { FaqList } from "@/components/faq-list";
 import { PageHero } from "@/components/page-hero";
 import { RelatedLinks } from "@/components/related-links";
 import { Section, SectionHeading } from "@/components/section";
+import { JsonLd } from "@/components/json-ld";
 import { absoluteUrl, routes } from "@/lib/site";
+import { breadcrumbNode, serviceNode } from "@/lib/structured-data";
+
+const description =
+  "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend in the TraffLabels designer, or upload a CSV schedule.";
 
 export const metadata: Metadata = {
   title: "Switchboard Labels Perth | Engraved Circuit IDs | TraffLabels",
-  description:
-    "Engraved Traffolyte switchboard labels for Perth trades — circuit IDs, main switches, and isolators. Order a single legend in the TraffLabels designer, or upload a CSV schedule.",
+  description,
   alternates: { canonical: absoluteUrl(routes.switchboard) },
 };
 
 export default function SwitchboardLabelsPage() {
   return (
     <>
+      <JsonLd
+        data={[
+          serviceNode({
+            name: "Switchboard labels for Perth trades",
+            description,
+            path: routes.switchboard,
+            areaName: "Perth",
+          }),
+          breadcrumbNode([
+            { name: "Home", path: routes.home },
+            { name: "Switchboard labels", path: routes.switchboard },
+          ]),
+        ]}
+      />
       <PageHero
         eyebrow="Electrical"
         title="Switchboard labels for Perth trades"
@@ -86,7 +104,7 @@ export default function SwitchboardLabelsPage() {
               question: "Do you certify boards to AS/NZS 3000?",
               answer: (
                 <p>
-                  No. TraffoLab engraves identification labels that electricians
+                  No. TraffLabels engraves identification labels that electricians
                   use so AS/NZS 3000 boards stay clearly marked. Certification
                   of the installation sits with the licensed electrician.
                 </p>
