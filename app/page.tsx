@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { EngravingScrub } from "@/components/engraving-scrub";
 import { HomeHero } from "@/components/home-hero";
 import { UseCases } from "@/components/use-cases";
+import { JsonLd } from "@/components/json-ld";
 import { absoluteUrl, routes, siteName } from "@/lib/site";
+import { organizationNode, websiteNode } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: `${siteName} | Traffolyte Labels for Perth Trades & Custom Work`,
@@ -16,6 +18,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <>
+      <JsonLd data={[organizationNode(), websiteNode()]} />
       <HomeHero />
       <EngravingScrub />
       <UseCases />

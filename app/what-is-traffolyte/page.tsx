@@ -10,18 +10,36 @@ import { LaminatePlate } from "@/components/laminate-plate";
 import { PageHero } from "@/components/page-hero";
 import { RelatedLinks } from "@/components/related-links";
 import { Section, SectionHeading } from "@/components/section";
+import { JsonLd } from "@/components/json-ld";
 import { absoluteUrl, routes } from "@/lib/site";
+import { breadcrumbNode, webPageNode, websiteNode } from "@/lib/structured-data";
+
+const description =
+  "Traffolyte is multi-layer engraving laminate. The laser removes the top colour so text is the core — used for switchboard, circuit ID, and industrial tags in Perth.";
 
 export const metadata: Metadata = {
   title: "What is Traffolyte? Engraving Laminate Explained | TraffLabels",
-  description:
-    "Traffolyte is multi-layer engraving laminate. The laser removes the top colour so text is the core — used for switchboard, circuit ID, and industrial tags in Perth.",
+  description,
   alternates: { canonical: absoluteUrl(routes.whatIs) },
 };
 
 export default function WhatIsTraffolytePage() {
   return (
     <>
+      <JsonLd
+        data={[
+          websiteNode(),
+          webPageNode({
+            name: "What is Traffolyte?",
+            description,
+            path: routes.whatIs,
+          }),
+          breadcrumbNode([
+            { name: "Home", path: routes.home },
+            { name: "What is Traffolyte", path: routes.whatIs },
+          ]),
+        ]}
+      />
       <PageHero
         eyebrow="Material"
         title="What is Traffolyte?"
