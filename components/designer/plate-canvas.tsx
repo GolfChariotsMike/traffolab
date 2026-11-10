@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   colourPairOf,
-  ENGRAVE_FONT_FAMILY,
   ENGRAVE_FONT_WEIGHT,
   LINE_HEIGHT,
   resizeHandlePoints,
@@ -17,6 +16,7 @@ import {
   type ResizeHandle,
   type TextObject,
 } from "@/lib/label-design";
+import { engraveFontFamily } from "@/lib/engrave-fonts";
 
 type Point = { x: number; y: number };
 
@@ -315,8 +315,8 @@ function TextNode({
         fontSize={object.fontSize}
         textAnchor={textAnchor(object.align)}
         style={{
-          fontFamily: ENGRAVE_FONT_FAMILY,
-          fontWeight: ENGRAVE_FONT_WEIGHT,
+          fontFamily: engraveFontFamily(object.fontFace),
+          fontWeight: object.fontWeight ?? ENGRAVE_FONT_WEIGHT,
           userSelect: "none",
         }}
       >

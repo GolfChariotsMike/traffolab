@@ -9,10 +9,10 @@ import {
   applyUniformTextSize,
   restoreIndividualLegendFit,
 } from "@/lib/label-design";
-import type { EngraveFontWeight, PlateHole } from "@/lib/label-design";
+import type { EngraveFontFace, EngraveFontWeight, PlateHole } from "@/lib/label-design";
 import type { ShippingMethodId } from "@/lib/pricing";
 
-export type { EngraveFontWeight, PlateHole };
+export type { EngraveFontFace, EngraveFontWeight, PlateHole };
 
 export const ORDER_STATUSES = ["NEW", "CUT", "READY TO SHIP", "SHIPPED"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -31,6 +31,8 @@ export type PlateObject = {
   align: PlateAlign;
   /** Omitted or 400 keeps existing proof hashes unchanged. */
   fontWeight?: EngraveFontWeight;
+  /** Omitted or "arial" keeps existing proof hashes unchanged. */
+  fontFace?: EngraveFontFace;
 };
 
 /** Geometry needed to cut the plate later. Prices are server-calculated cents. */

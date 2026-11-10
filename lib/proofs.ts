@@ -137,6 +137,7 @@ export function canonicalPlates(plates: StoredPlate[]) {
       fontSize: object.fontSize,
       align: object.align,
       ...(object.fontWeight === 700 ? { fontWeight: 700 as const } : {}),
+      ...(object.fontFace === "condensed" ? { fontFace: "condensed" as const } : {}),
     })),
     ...(Array.isArray(plate.holes) && plate.holes.length > 0
       ? {

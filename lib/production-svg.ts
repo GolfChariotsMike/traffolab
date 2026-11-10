@@ -7,12 +7,12 @@
  */
 
 import {
-  ENGRAVE_FONT_FAMILY,
   ENGRAVE_FONT_WEIGHT,
   LINE_HEIGHT,
   engraveLayout,
   serializeHoleCircles,
 } from "@/lib/label-design";
+import { engraveFontFamily } from "@/lib/engrave-fonts";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 
 export const ENGRAVE_FILL = "#000000";
@@ -57,7 +57,8 @@ export function serializeEngraveText(
       const y = Math.round((laid.y + index * step) * 1000) / 1000;
       const lineId = lines.length > 1 ? `${id}-line${index + 1}` : id;
       const weight = laid.fontWeight ?? ENGRAVE_FONT_WEIGHT;
-      return `<text id="${escapeXml(lineId)}" x="${laid.x}" y="${y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${weight}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
+      const family = engraveFontFamily(laid.fontFace);
+      return `<text id="${escapeXml(lineId)}" x="${laid.x}" y="${y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${family}" font-size="${laid.fontSize}" font-weight="${weight}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
     })
     .join("");
 }

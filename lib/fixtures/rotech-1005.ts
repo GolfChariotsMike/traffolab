@@ -2,16 +2,18 @@
  * Proposed plate layout for TraffLabels order #1005 (Rotech Water job 10257).
  *
  * This is a review fixture only. It is not written to the live order until the
- * site can render holes and bold type. The customer's drawing is NTS; physical
- * sizes stay 30 × 10 mm (ID tags) and 100 × 75 mm (nameplate).
+ * site can render holes, bold type, and the condensed face. The customer's
+ * drawing is NTS; physical sizes stay 30 × 10 mm (ID tags) and 100 × 75 mm
+ * (nameplate).
  *
  * The drawing marks a cable-tie hole with an "O" but does not dimension it.
- * A 3 mm hole centred 4 mm from the left edge leaves too little width for
- * NRV-01 / NRV-02 at 5 mm cap height (6.8 mm em). The proposed geometry is a
- * 3 mm hole, centre 3.3 mm from the left and vertically centred, with a 0.4 mm
- * gap after the hole and a 0.4 mm right margin.
+ * ID tags use Roboto Condensed at 5 mm cap height (7.033 mm em) so a 3 mm
+ * hole can sit at the drawn-looking position: centre 4 mm from the left,
+ * vertically centred, with a 0.4 mm gap after the hole and a 0.4 mm right
+ * margin. The nameplate stays on Arial.
  */
 
+import { emForCapHeightMm } from "@/lib/engrave-fonts";
 import {
   applyFixedTextSize,
   CAP_HEIGHT_EM,
@@ -21,7 +23,10 @@ import {
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 
 /** Proposed (not dimensioned on the drawing). */
-export const ID_TAG_HOLE: PlateHole = { cx: 3.3, cy: 5, diameterMm: 3 };
+export const ID_TAG_HOLE: PlateHole = { cx: 4, cy: 5, diameterMm: 3 };
+
+/** Em that yields a 5 mm cap height in Roboto Condensed (1456/2048). */
+export const ID_TAG_FONT_MM = emForCapHeightMm(5, "condensed");
 
 export const ID_TAG_LEGENDS = [
   "IV-01",
@@ -38,8 +43,6 @@ export const ID_TAG_LEGENDS = [
   "MV-21",
   "MV-22",
 ] as const;
-
-const ID_TAG_FONT_MM = 6.8;
 
 const NAMEPLATE_LINES: Array<{
   text: string;
@@ -79,6 +82,7 @@ function blankTag(text: string): StoredPlate {
         y: 5,
         fontSize: ID_TAG_FONT_MM,
         align: "center",
+        fontFace: "condensed",
       },
     ],
   };

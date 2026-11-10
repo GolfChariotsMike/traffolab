@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { BrandLogo } from "@/components/brand-logo";
-import { ID_TAG_HOLE, rotech1005Plates, rotech1005TagBand } from "@/lib/fixtures/rotech-1005";
+import { ID_TAG_FONT_MM, ID_TAG_HOLE, rotech1005Plates, rotech1005TagBand } from "@/lib/fixtures/rotech-1005";
 import { capHeightMm } from "@/lib/label-design";
 import { orderItemCount, type StoredPlate } from "@/lib/orders";
 import { proofPlateSvg } from "@/lib/proof-plate";
@@ -38,7 +38,7 @@ export default function Rotech1005ReviewPage() {
   const plates = rotech1005Plates();
   const band = rotech1005TagBand();
   const totalQty = orderItemCount(plates);
-  const cap = capHeightMm(6.8);
+  const cap = capHeightMm(ID_TAG_FONT_MM, "condensed");
 
   return (
     <div className="min-h-screen">
@@ -58,8 +58,9 @@ export default function Rotech1005ReviewPage() {
           </h1>
           <p className="max-w-xl text-sm leading-relaxed text-neutral-600">
             Proposed layout for job 10257. This is not the live customer proof and cannot be
-            approved here. White Traffolyte, black engraving, adhesive-backed. Price is unchanged
-            at $72.05 inc GST including $10 standard postage.
+            approved here. White Traffolyte, black engraving, adhesive-backed. ID tags use Roboto
+            Condensed so 5 mm-tall letters still leave room for the cable-tie hole. Price is
+            unchanged at $72.05 inc GST including $10 standard postage.
           </p>
         </header>
 
@@ -67,9 +68,8 @@ export default function Rotech1005ReviewPage() {
           <p>
             ID tags show a {ID_TAG_HOLE.diameterMm} mm cable-tie hole, centre {ID_TAG_HOLE.cx} mm
             from the left and {ID_TAG_HOLE.cy} mm from the top (vertically centred). The drawing
-            did not dimension the hole. A 4 mm centre does not leave enough width for NRV-01 or
-            NRV-02 at {cap} mm cap height, so the hole is 0.7 mm closer to the left edge. Legend
-            text is centred in the remaining band ({band.left}–{band.right} mm).
+            did not dimension the hole. Letters are {cap} mm tall ({ID_TAG_FONT_MM} mm em) in
+            Roboto Condensed, centred in the remaining band ({band.left}–{band.right} mm).
           </p>
           <p className="mt-2">
             The nameplate keeps the specified 100 × 75 mm size. Title and company name are bold;
