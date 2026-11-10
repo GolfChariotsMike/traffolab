@@ -9,7 +9,9 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const studio = pathname.startsWith("/admin");
   const proof =
-    pathname.startsWith("/proof") || pathname.startsWith("/account-application");
+    pathname.startsWith("/proof") ||
+    pathname.startsWith("/account-application") ||
+    pathname.startsWith("/review");
 
   if (studio) {
     return <div className="min-h-full bg-[#0c0d10] text-paper">{children}</div>;

@@ -595,13 +595,15 @@ export function wrapLegendToFit(
 
 /**
  * Largest type that fills the plate on the limiting axis, with that inset,
- * then centred (or pinned to that inset when the legend is left or right aligned).
+ * then centred in the engraving band. With no hole the band is the full plate.
+ * With a cable-tie hole it is the clear side, so the legend is not parked on the cut.
  */
 export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject {
   const text = wrapLegendToFit(object.text, plate, object.fontFace);
   const { kW, kH, ascent } = textFactors(text, object.fontFace);
   const inset = autoTextInset(plate);
-  const innerW = Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
+  const band = textBand(plate);
+  const innerW = Math.max(band.width, Math.min(plate.widthMm, 0.4));
   const innerH = Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
   const fit = Math.min(innerW / kW, innerH / kH);
   const fontSize = clamp(
@@ -612,10 +614,10 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
   const height = kH * fontSize;
   const x =
     object.align === "left"
-      ? inset.x
+      ? band.left
       : object.align === "right"
-        ? plate.widthMm - inset.x
-        : plate.widthMm / 2;
+        ? band.right
+        : band.centerX;
   const y = (plate.heightMm - height) / 2 + ascent * fontSize;
   return clampObjectToPlate(
     { ...object, fontSize, x: roundMm(x), y: roundMm(y) },
@@ -925,6 +927,7 @@ export function engraveLayout<
       y: object.y,
       fontSize: object.fontSize,
       align: object.align,
+      ...(object.fontFace ? { fontFace: object.fontFace } : {}),
     },
     plate
   );
@@ -1386,13 +1389,15 @@ export function serializeHoleCircles(
   holes: PlateHole[] | undefined,
   stroke: string,
   strokeWidth: number,
-  fill = "none"
+  fill = "none",
+  idPrefix = ""
 ) {
   if (!holes || holes.length === 0) return "";
+  const prefix = escapeXml(idPrefix);
   return holes
     .map((hole, index) => {
       const r = Math.round((hole.diameterMm / 2) * 1000) / 1000;
-      return `<circle id="hole-${index + 1}" cx="${hole.cx}" cy="${hole.cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+      return `<circle id="${prefix}hole-${index + 1}" cx="${hole.cx}" cy="${hole.cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
     })
     .join("");
 }
@@ -1419,6 +1424,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
   const texts = design.objects
     .map((object) => serializeTextElement(object, "#FF0000", design))
     .join("\n    ");
+  const holes = serializeHoleCircles(design.holes, "#000000", 0.1);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${design.widthMm}mm" height="${design.heightMm}mm" viewBox="0 0 ${design.widthMm} ${design.heightMm}">
@@ -1431,8 +1437,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
     ${escapeXml(JSON.stringify(serializeDesignJson(design)))}
   </metadata>
   <g id="cut" inkscape:groupmode="layer" inkscape:label="cut" data-layer="cut">
-    <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#000000" stroke-width="0.1"/>
-    ${serializeHoleCircles(design.holes, "#000000", 0.1)}
+    <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#000000" stroke-width="0.1"/>${holes ? `\n    ${holes}` : ""}
   </g>
   <g id="guide" inkscape:groupmode="layer" inkscape:label="guide" data-layer="guide">
     <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#0000FF" stroke-width="0.05"/>

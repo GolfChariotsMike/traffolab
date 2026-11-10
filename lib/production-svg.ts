@@ -44,7 +44,7 @@ export function plateCopyCount(qty: number) {
 export function serializeEngraveText(
   object: PlateObject,
   idSuffix = "",
-  plate?: Pick<StoredPlate, "widthMm" | "heightMm">
+  plate?: Pick<StoredPlate, "widthMm" | "heightMm" | "holes">
 ) {
   const laid = plate ? engraveLayout(object, plate) : object;
   const lines = laid.text.length > 0 ? laid.text.split("\n") : [""];
@@ -84,8 +84,7 @@ export function serializeProductionSvg(
     ${texts}
   </g>
   <g id="cut" data-layer="cut">
-    <rect x="0" y="0" width="${plate.widthMm}" height="${plate.heightMm}" fill="none" stroke="${CUT_STROKE}" stroke-width="0.1"/>
-    ${holes}
+    <rect x="0" y="0" width="${plate.widthMm}" height="${plate.heightMm}" fill="none" stroke="${CUT_STROKE}" stroke-width="0.1"/>${holes ? `\n    ${holes}` : ""}
   </g>
 </svg>
 `;

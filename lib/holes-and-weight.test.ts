@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { emForCapHeightMm } from "./engrave-fonts";
 import {
   ID_TAG_FONT_MM,
@@ -9,13 +10,18 @@ import {
 import {
   applyFixedTextSize,
   capHeightMm,
+  engraveLayout,
+  fitTextToPlate,
   layoutLegendAtFont,
   serializeHoleCircles,
+  serializeLightBurnSvg,
   textBand,
+  textMetrics,
 } from "./label-design";
 import { proofPlateSvg } from "./proof-plate";
 import { canonicalPlates, platesApprovalHash } from "./proofs";
 import { serializeProductionSvg } from "./production-svg";
+import { nestPlates, serializeNestSheetSvg } from "./sheet-nest";
 import type { StoredPlate } from "./orders";
 
 const base: StoredPlate = {
@@ -33,7 +39,43 @@ const base: StoredPlate = {
 };
 
 const hash = platesApprovalHash([base]);
+// Pinned to the canonical JSON from before holes, weight, and font face existed.
+assert.equal(hash, "e74ae6f867a3e3663624c720f667ab68c32345adc3a37c09291d540cf49c4fbe");
+assert.deepEqual(canonicalPlates([base]), [
+  {
+    widthMm: 30,
+    heightMm: 10,
+    qty: 1,
+    text: "IV-01",
+    location: "",
+    colourPair: "white-black",
+    adhesive3m: false,
+    objects: [{ text: "IV-01", x: 15, y: 7.4, fontSize: 6.8, align: "center" }],
+    uniformTextMm: 6.8,
+  },
+]);
 assert.equal(platesApprovalHash([{ ...base, holes: [] }]), hash);
+assert.equal(
+  serializeProductionSvg({
+    ...base,
+    holes: [],
+    objects: [{ ...base.objects[0], fontWeight: 400, fontFace: "arial" }],
+  }),
+  serializeProductionSvg(base)
+);
+assert.doesNotMatch(serializeProductionSvg(base), /hole-/);
+assert.match(serializeProductionSvg(base), /stroke-width="0.1"\/>\n  <\/g>/);
+const plainBurn = serializeLightBurnSvg({
+  version: 1,
+  widthMm: 30,
+  heightMm: 10,
+  colourPair: "white-black",
+  adhesive3m: false,
+  objects: [
+    { id: "text-1", type: "text", text: "IV-01", x: 15, y: 7.4, fontSize: 6.8, align: "center" },
+  ],
+});
+assert.doesNotMatch(plainBurn, /hole-/);
 assert.equal(
   platesApprovalHash([
     {
@@ -168,5 +210,97 @@ assert.match(serializeProductionSvg(nameplate), /font-family="Arial, Helvetica, 
 assert.match(proofPlateSvg(nameplate), /font-weight="700"/);
 assert.doesNotMatch(serializeProductionSvg(nameplate), /id="hole-/);
 assert.match(serializeProductionSvg(plates[1]), /font-family=\"'Roboto Condensed', sans-serif\"/);
+
+const nrv = plates[1];
+const nrvBox = textMetrics({ ...nrv.objects[0], type: "text" }, nrv);
+const nrvHoleRight = (nrv.holes?.[0].cx ?? 0) + (nrv.holes?.[0].diameterMm ?? 0) / 2;
+assert.equal(nrv.objects[0].text, "NRV-01");
+assert.ok(nrvBox.left > nrvHoleRight + 1, `NRV-01 overlaps the hole (${nrvBox.left})`);
+assert.ok(nrvBox.left + nrvBox.width < nrv.widthMm - 0.4);
+assert.match(proofPlateSvg(nrv), />NRV-01</);
+const nameProof = proofPlateSvg(nameplate);
+assert.equal((nameProof.match(/<text /g) ?? []).length, 9);
+assert.match(nameProof, />CENTRAL TANAMI PROJECT JOINT VENTURE</);
+
+const fittedBesideHole = fitTextToPlate(
+  {
+    id: "text-1",
+    type: "text",
+    text: "NRV-01",
+    x: 1,
+    y: 1,
+    fontSize: 3,
+    align: "center",
+    fontFace: "condensed",
+  },
+  plateWithHole
+);
+assert.equal(fittedBesideHole.x, Math.round(band.centerX * 10) / 10);
+const fittedWithoutHole = fitTextToPlate(
+  {
+    id: "text-1",
+    type: "text",
+    text: "NRV-01",
+    x: 1,
+    y: 1,
+    fontSize: 3,
+    align: "center",
+  },
+  { widthMm: 30, heightMm: 10 }
+);
+assert.equal(fittedWithoutHole.x, 15);
+
+const refitPlate = {
+  widthMm: 20,
+  heightMm: 10,
+  holes: [{ cx: 3, cy: 5, diameterMm: 3 }],
+};
+const refit = engraveLayout(
+  {
+    id: "text-1",
+    text: "ADMIN-AC7-THEATRE",
+    x: 10,
+    y: 5,
+    fontSize: 8,
+    align: "center",
+    fontFace: "condensed",
+  },
+  refitPlate
+);
+assert.equal(refit.fontFace, "condensed");
+assert.notEqual(refit.text, "ADMIN-AC7-THEATRE");
+const refitExpected = fitTextToPlate(
+  {
+    id: "text-1",
+    type: "text",
+    text: "ADMIN-AC7-THEATRE",
+    x: 10,
+    y: 5,
+    fontSize: 8,
+    align: "center",
+    fontFace: "condensed",
+  },
+  refitPlate
+);
+assert.equal(refit.fontSize, refitExpected.fontSize);
+assert.equal(refit.x, refitExpected.x);
+
+const nested = nestPlates([placed]);
+assert.equal(nested.sheets.length, 1);
+const nestSvg = serializeNestSheetSvg(1005, nested.sheets[0]);
+assert.match(nestSvg, /id="L1c1-hole-1"/);
+assert.match(nestSvg, /fill="none" stroke="#FF0000"/);
+assert.doesNotMatch(nestSvg, /id="hole-1"/);
+const legendTransform = nestSvg.match(/<g id="plate-L1-c1"[^>]*transform="([^"]+)"/);
+const holeTransform = nestSvg.match(/<g id="holes-L1-c1"[^>]*transform="([^"]+)"/);
+assert.ok(legendTransform && holeTransform);
+assert.equal(legendTransform[1], holeTransform[1]);
+
+const shellSource = readFileSync(new URL("../components/site-shell.tsx", import.meta.url), "utf8");
+const robotsSource = readFileSync(new URL("../app/robots.ts", import.meta.url), "utf8");
+const reviewSource = readFileSync(new URL("../app/review/rotech-1005/page.tsx", import.meta.url), "utf8");
+assert.match(shellSource, /startsWith\("\/review"\)/);
+assert.match(robotsSource, /\/review\//);
+assert.match(reviewSource, /index: false/);
 
 console.log("lib/holes-and-weight.test.ts: ok");

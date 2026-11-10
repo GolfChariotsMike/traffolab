@@ -597,7 +597,13 @@ export function serializeNestSheetSvg(orderNumber: number, sheet: NestSheet) {
       const holes = placement.plate.holes ?? [];
       if (holes.length === 0) return [];
       const id = `holes-L${placement.lineIndex + 1}-c${placement.copy}`;
-      const circles = serializeHoleCircles(holes, CUT_STROKE, 0.1);
+      const circles = serializeHoleCircles(
+        holes,
+        CUT_STROKE,
+        0.1,
+        "none",
+        `L${placement.lineIndex + 1}c${placement.copy}-`
+      );
       return [
         `    <g id="${escapeXml(id)}" data-rotation="${placement.rotation}" transform="${plateGroupTransform(placement)}">${circles}</g>`,
       ];
