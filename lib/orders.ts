@@ -9,7 +9,10 @@ import {
   applyUniformTextSize,
   restoreIndividualLegendFit,
 } from "@/lib/label-design";
+import type { EngraveFontWeight, PlateHole } from "@/lib/label-design";
 import type { ShippingMethodId } from "@/lib/pricing";
+
+export type { EngraveFontWeight, PlateHole };
 
 export const ORDER_STATUSES = ["NEW", "CUT", "READY TO SHIP", "SHIPPED"] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
@@ -26,6 +29,8 @@ export type PlateObject = {
   y: number;
   fontSize: number;
   align: PlateAlign;
+  /** Omitted or 400 keeps existing proof hashes unchanged. */
+  fontWeight?: EngraveFontWeight;
 };
 
 /** Geometry needed to cut the plate later. Prices are server-calculated cents. */
@@ -40,6 +45,8 @@ export type StoredPlate = {
   adhesive3m: boolean;
   text: string;
   objects: PlateObject[];
+  /** Cut-through holes (cable ties, mounting). Omitted when the plate has none. */
+  holes?: PlateHole[];
   /** Optional switchboard or site group, set in the admin before a proof is sent. */
   location?: string;
   /**

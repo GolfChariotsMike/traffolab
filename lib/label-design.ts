@@ -155,6 +155,16 @@ export const COLOUR_PAIRS = {
 export type ColourPairId = keyof typeof COLOUR_PAIRS;
 export type TextAlign = "left" | "center" | "right";
 
+/** Engrave weight. 400 is Arial Regular (the default). 700 is for titles. */
+export type EngraveFontWeight = 400 | 700;
+
+/** Cable-tie or mounting hole. Centres and diameter are millimetres. */
+export type PlateHole = {
+  cx: number;
+  cy: number;
+  diameterMm: number;
+};
+
 export type TextObject = {
   id: string;
   type: "text";
@@ -163,6 +173,8 @@ export type TextObject = {
   y: number;
   fontSize: number;
   align: TextAlign;
+  /** Omitted or 400 keeps existing proof hashes unchanged. */
+  fontWeight?: EngraveFontWeight;
 };
 
 export type LabelDesign = {
@@ -172,6 +184,7 @@ export type LabelDesign = {
   colourPair: ColourPairId;
   adhesive3m: boolean;
   objects: TextObject[];
+  holes?: PlateHole[];
 };
 
 export type OrderLine = {
@@ -292,7 +305,7 @@ export function textLines(text: string) {
   return text.length > 0 ? text.split("\n") : [""];
 }
 
-type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm">;
+type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm"> & { holes?: PlateHole[] };
 
 export function textMetrics(object: TextObject, plate?: PlateSize) {
   const text = plate ? wrapLegendToFit(object.text, plate) : object.text;
@@ -383,9 +396,58 @@ export function autoTextInset(plate: PlateSize) {
   };
 }
 
+/** Clearance between a hole edge and the legend, in millimetres. */
+export const HOLE_TEXT_GAP_MM = 0.4;
+/**
+ * When a hole is present, use a tight opposite-edge inset so a long legend
+ * can still use the remaining band. The usual 7.5% inset is too greedy on
+ * 30 × 10 mm cable-tie tags.
+ */
+export const HOLE_EDGE_INSET_MM = 0.4;
+
+/** Horizontal band left for engraving after any cut-through holes. */
+export function textBand(
+  plate: PlateSize,
+  options?: { gapMm?: number; edgeInsetMm?: number }
+) {
+  const holes = plate.holes ?? [];
+  const defaultInset = autoTextInset(plate).x;
+  const inset =
+    options?.edgeInsetMm ??
+    (holes.length > 0 ? Math.min(defaultInset, HOLE_EDGE_INSET_MM) : defaultInset);
+  const gap = options?.gapMm ?? HOLE_TEXT_GAP_MM;
+  if (holes.length === 0) {
+    const left = inset;
+    const right = plate.widthMm - inset;
+    return { left, right, width: Math.max(right - left, 0), centerX: plate.widthMm / 2 };
+  }
+  const holeRight = Math.max(...holes.map((hole) => hole.cx + hole.diameterMm / 2));
+  const holeLeft = Math.min(...holes.map((hole) => hole.cx - hole.diameterMm / 2));
+  const rightLeft = Math.max(inset, holeRight + gap);
+  const rightRight = plate.widthMm - inset;
+  const rightWidth = rightRight - rightLeft;
+  const leftLeft = inset;
+  const leftRight = Math.min(plate.widthMm - inset, holeLeft - gap);
+  const leftWidth = leftRight - leftLeft;
+  if (rightWidth >= leftWidth && rightWidth > 0) {
+    return {
+      left: Math.round(rightLeft * 1000) / 1000,
+      right: Math.round(rightRight * 1000) / 1000,
+      width: Math.round(rightWidth * 1000) / 1000,
+      centerX: Math.round(((rightLeft + rightRight) / 2) * 1000) / 1000,
+    };
+  }
+  return {
+    left: Math.round(leftLeft * 1000) / 1000,
+    right: Math.round(leftRight * 1000) / 1000,
+    width: Math.round(Math.max(leftWidth, 0) * 1000) / 1000,
+    centerX: Math.round(((leftLeft + leftRight) / 2) * 1000) / 1000,
+  };
+}
+
 function legendInnerWidth(plate: PlateSize) {
-  const inset = autoTextInset(plate);
-  return Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
+  const width = textBand(plate).width;
+  return Math.max(width, Math.min(plate.widthMm, 0.4));
 }
 
 function legendInnerHeight(plate: PlateSize) {
@@ -627,14 +689,14 @@ export function placeLegendAtSize<T extends Pick<TextObject, "text" | "x" | "y" 
 ): T {
   const text = wrapLegendToFit(object.text, plate);
   const { kH, ascent } = textFactors(text);
-  const inset = autoTextInset(plate);
+  const band = textBand(plate);
   const height = kH * fontSize;
   const x =
     object.align === "left"
-      ? inset.x
+      ? band.left
       : object.align === "right"
-        ? plate.widthMm - inset.x
-        : plate.widthMm / 2;
+        ? band.right
+        : band.centerX;
   const y = (plate.heightMm - height) / 2 + ascent * fontSize;
   return {
     ...object,
@@ -693,10 +755,11 @@ type UniformPlate = {
   widthMm: number;
   heightMm: number;
   text: string;
+  holes?: PlateHole[];
   uniformTextSize?: boolean;
   /** Set when every plate in the order uses this exact em size. */
   uniformTextMm?: number;
-  objects: Array<Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align">>;
+  objects: Array<Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align" | "fontWeight">>;
 };
 
 /** Every plate of one size gets the largest em that still fits every legend of that size. */
@@ -732,14 +795,14 @@ export function applyFixedTextSize<T extends UniformPlate>(plates: T[], fontSize
     const objects = plate.objects.map((object) => {
       const laid = layoutLegendAtFont(object.text, plate, fontSize);
       const { kH, ascent } = textFactors(laid.text);
-      const inset = autoTextInset(plate);
+      const band = textBand(plate);
       const height = kH * fontSize;
       const x =
         object.align === "left"
-          ? inset.x
+          ? band.left
           : object.align === "right"
-            ? plate.widthMm - inset.x
-            : plate.widthMm / 2;
+            ? band.right
+            : band.centerX;
       const y = (plate.heightMm - height) / 2 + ascent * fontSize;
       return {
         ...object,
@@ -1091,6 +1154,20 @@ export function shrinkTextToPlate(
   return clampObjectToPlate(object, plate);
 }
 
+function scaleHoles(
+  holes: PlateHole[] | undefined,
+  sx: number,
+  sy: number,
+  scale: number
+): PlateHole[] | undefined {
+  if (!holes || holes.length === 0) return holes;
+  return holes.map((hole) => ({
+    cx: roundMm(hole.cx * sx),
+    cy: roundMm(hole.cy * sy),
+    diameterMm: roundMm(hole.diameterMm * scale),
+  }));
+}
+
 export function applyPlateSize(
   design: LabelDesign,
   widthMm: number,
@@ -1100,16 +1177,18 @@ export function applyPlateSize(
   if (size.widthMm === design.widthMm && size.heightMm === design.heightMm) {
     return design;
   }
+  const sx = size.widthMm / design.widthMm;
+  const sy = size.heightMm / design.heightMm;
+  const scale = Math.min(sx, sy);
+  const holes = scaleHoles(design.holes, sx, sy, scale);
   if (design.objects.length <= 1) {
     return {
       ...design,
       ...size,
       objects: design.objects.map((object) => fitTextToPlate(object, size)),
+      ...(holes && holes.length > 0 ? { holes } : {}),
     };
   }
-  const sx = size.widthMm / design.widthMm;
-  const sy = size.heightMm / design.heightMm;
-  const scale = Math.min(sx, sy);
   return {
     ...design,
     ...size,
@@ -1124,6 +1203,7 @@ export function applyPlateSize(
         size
       )
     ),
+    ...(holes && holes.length > 0 ? { holes } : {}),
   };
 }
 
@@ -1210,7 +1290,55 @@ function serializeTextElement(object: TextObject, fill: string, plate: PlateSize
     .map((line, index) => {
       const y = Math.round((laid.y + index * step) * 1000) / 1000;
       const id = lines.length > 1 ? `engrave-${laid.id}-line${index + 1}` : `engrave-${laid.id}`;
-      return `<text id="${escapeXml(id)}" x="${laid.x}" y="${y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
+      const weight = laid.fontWeight ?? ENGRAVE_FONT_WEIGHT;
+      return `<text id="${escapeXml(id)}" x="${laid.x}" y="${y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${weight}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
+    })
+    .join("");
+}
+
+
+export function isEngraveFontWeight(value: unknown): value is EngraveFontWeight {
+  return value === 400 || value === 700;
+}
+
+export function normalizeHoles(value: unknown): PlateHole[] {
+  if (!Array.isArray(value)) return [];
+  const holes: PlateHole[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Partial<PlateHole>;
+    if (
+      typeof raw.cx !== "number" ||
+      typeof raw.cy !== "number" ||
+      typeof raw.diameterMm !== "number" ||
+      !Number.isFinite(raw.cx) ||
+      !Number.isFinite(raw.cy) ||
+      !Number.isFinite(raw.diameterMm) ||
+      raw.diameterMm <= 0
+    ) {
+      continue;
+    }
+    holes.push({
+      cx: Math.round(raw.cx * 1000) / 1000,
+      cy: Math.round(raw.cy * 1000) / 1000,
+      diameterMm: Math.round(raw.diameterMm * 1000) / 1000,
+    });
+  }
+  return holes;
+}
+
+/** Cut-layer circles. `fill` should be "none" for production, face colour on a proof. */
+export function serializeHoleCircles(
+  holes: PlateHole[] | undefined,
+  stroke: string,
+  strokeWidth: number,
+  fill = "none"
+) {
+  if (!holes || holes.length === 0) return "";
+  return holes
+    .map((hole, index) => {
+      const r = Math.round((hole.diameterMm / 2) * 1000) / 1000;
+      return `<circle id="hole-${index + 1}" cx="${hole.cx}" cy="${hole.cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
     })
     .join("");
 }
@@ -1250,6 +1378,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
   </metadata>
   <g id="cut" inkscape:groupmode="layer" inkscape:label="cut" data-layer="cut">
     <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#000000" stroke-width="0.1"/>
+    ${serializeHoleCircles(design.holes, "#000000", 0.1)}
   </g>
   <g id="guide" inkscape:groupmode="layer" inkscape:label="guide" data-layer="guide">
     <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#0000FF" stroke-width="0.05"/>
@@ -1295,7 +1424,7 @@ function parseTextObject(value: unknown): TextObject | null {
   ) {
     return null;
   }
-  return {
+  const parsed: TextObject = {
     id: object.id,
     type: "text",
     text: object.text,
@@ -1304,6 +1433,10 @@ function parseTextObject(value: unknown): TextObject | null {
     fontSize: object.fontSize,
     align: object.align,
   };
+  if (isEngraveFontWeight(object.fontWeight) && object.fontWeight !== 400) {
+    parsed.fontWeight = object.fontWeight;
+  }
+  return parsed;
 }
 
 export function parseDesign(
@@ -1329,12 +1462,14 @@ export function parseDesign(
     options?.snapToPreset === true
       ? clampPlateSize(draft.widthMm, draft.heightMm)
       : clampFreeformPlateSize(draft.widthMm, draft.heightMm);
+  const holes = normalizeHoles(draft.holes);
   return {
     version: DESIGN_VERSION,
     ...size,
     colourPair: draft.colourPair,
     adhesive3m: draft.adhesive3m,
     objects: objects.map((object) => shrinkTextToPlate(object, size)),
+    ...(holes.length > 0 ? { holes } : {}),
   };
 }
 
