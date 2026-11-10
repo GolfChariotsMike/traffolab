@@ -186,3 +186,21 @@
     animation: none;
   }
 }
+
+
+/* Vendored Apache-2.0 face for condensed engraving (ID tags, etc.). */
+@font-face {
+  font-family: "Roboto Condensed";
+  src: url("/fonts/roboto-condensed/RobotoCondensed-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Roboto Condensed";
+  src: url("/fonts/roboto-condensed/RobotoCondensed-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

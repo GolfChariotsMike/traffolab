@@ -11,6 +11,7 @@
  * sit flush and the shared boundary is the single centerline.
  */
 
+import { serializeHoleCircles } from "@/lib/label-design";
 import type { StoredPlate } from "@/lib/orders";
 import {
   CUT_STROKE,
@@ -591,6 +592,23 @@ export function serializeNestSheetSvg(orderNumber: number, sheet: NestSheet) {
         `    <path d="M ${formatMm(segment.x1)} ${formatMm(segment.y1)} L ${formatMm(segment.x2)} ${formatMm(segment.y2)}" fill="none" stroke="${CUT_STROKE}" stroke-width="0.1"/>`
     )
     .join("\n");
+  const holeCuts = sheet.placements
+    .flatMap((placement) => {
+      const holes = placement.plate.holes ?? [];
+      if (holes.length === 0) return [];
+      const id = `holes-L${placement.lineIndex + 1}-c${placement.copy}`;
+      const circles = serializeHoleCircles(
+        holes,
+        CUT_STROKE,
+        0.1,
+        "none",
+        `L${placement.lineIndex + 1}c${placement.copy}-`
+      );
+      return [
+        `    <g id="${escapeXml(id)}" data-rotation="${placement.rotation}" transform="${plateGroupTransform(placement)}">${circles}</g>`,
+      ];
+    })
+    .join("\n");
   const fitNote = sheet.fitsMaterialSheet
     ? `Material sheet ${SHEET_WIDTH_MM} × ${SHEET_HEIGHT_MM} mm.`
     : `This plate does not fit a ${SHEET_WIDTH_MM} × ${SHEET_HEIGHT_MM} mm sheet in either orientation.`;
@@ -608,7 +626,7 @@ export function serializeNestSheetSvg(orderNumber: number, sheet: NestSheet) {
 ${engrave}
   </g>
   <g id="cut" data-layer="cut">
-${cuts}
+${cuts}${holeCuts ? `\n${holeCuts}` : ""}
   </g>
 </svg>
 `;

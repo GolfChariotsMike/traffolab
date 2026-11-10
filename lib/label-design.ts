@@ -1,3 +1,14 @@
+import {
+  CONDENSED_METRICS,
+  capHeightEmOf,
+  engraveFontFamily,
+  normalizeEngraveFontFace,
+  type EngraveFontFace,
+  type EngraveFontMetrics,
+} from "@/lib/engrave-fonts";
+
+export type { EngraveFontFace };
+
 export const DESIGN_VERSION = 1 as const;
 
 /** Smallest trade preset is 20 × 10 (Mike’s physical sample). */
@@ -155,6 +166,16 @@ export const COLOUR_PAIRS = {
 export type ColourPairId = keyof typeof COLOUR_PAIRS;
 export type TextAlign = "left" | "center" | "right";
 
+/** Engrave weight. 400 is Arial Regular (the default). 700 is for titles. */
+export type EngraveFontWeight = 400 | 700;
+
+/** Cable-tie or mounting hole. Centres and diameter are millimetres. */
+export type PlateHole = {
+  cx: number;
+  cy: number;
+  diameterMm: number;
+};
+
 export type TextObject = {
   id: string;
   type: "text";
@@ -163,6 +184,10 @@ export type TextObject = {
   y: number;
   fontSize: number;
   align: TextAlign;
+  /** Omitted or 400 keeps existing proof hashes unchanged. */
+  fontWeight?: EngraveFontWeight;
+  /** Omitted or "arial" keeps existing proof hashes unchanged. */
+  fontFace?: EngraveFontFace;
 };
 
 export type LabelDesign = {
@@ -172,6 +197,7 @@ export type LabelDesign = {
   colourPair: ColourPairId;
   adhesive3m: boolean;
   objects: TextObject[];
+  holes?: PlateHole[];
 };
 
 export type OrderLine = {
@@ -292,12 +318,12 @@ export function textLines(text: string) {
   return text.length > 0 ? text.split("\n") : [""];
 }
 
-type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm">;
+type PlateSize = Pick<LabelDesign, "widthMm" | "heightMm"> & { holes?: PlateHole[] };
 
 export function textMetrics(object: TextObject, plate?: PlateSize) {
-  const text = plate ? wrapLegendToFit(object.text, plate) : object.text;
+  const text = plate ? wrapLegendToFit(object.text, plate, object.fontFace) : object.text;
   const lines = textLines(text);
-  const { kW, kH, ascent } = textFactors(text);
+  const { kW, kH, ascent } = textFactors(text, object.fontFace);
   const width = kW * object.fontSize;
   const height = kH * object.fontSize;
   const left =
@@ -345,25 +371,40 @@ type EdgePins = {
   centerY?: number;
 };
 
-function lineEmWidth(line: string) {
-  if (line.length === 0) return CHAR_WIDTH_EM;
-  let em = 0;
-  for (const char of line) em += GLYPH_EM[char] ?? CHAR_WIDTH_EM;
-  return Math.max(em, 0.2);
-}
-
-function lineVertical(line: string) {
+function fontMetrics(face?: EngraveFontFace | null): EngraveFontMetrics {
+  if (normalizeEngraveFontFace(face) === "condensed") return CONDENSED_METRICS;
   return {
-    ascent: TALL_RE.test(line) ? GLYPH_ASCENT_TALL_EM : GLYPH_ASCENT_EM,
-    descent: DESCENDER_RE.test(line) ? GLYPH_DESCENT_EM : GLYPH_DESCENT_FLAT_EM,
+    capHeightEm: GLYPH_ASCENT_EM,
+    ascentEm: GLYPH_ASCENT_EM,
+    ascentTallEm: GLYPH_ASCENT_TALL_EM,
+    descentEm: GLYPH_DESCENT_EM,
+    descentFlatEm: GLYPH_DESCENT_FLAT_EM,
+    charWidthEm: CHAR_WIDTH_EM,
+    glyphEm: GLYPH_EM,
   };
 }
 
-function textFactors(text: string) {
+function lineEmWidth(line: string, fontFace?: EngraveFontFace | null) {
+  const metrics = fontMetrics(fontFace);
+  if (line.length === 0) return metrics.charWidthEm;
+  let em = 0;
+  for (const char of line) em += metrics.glyphEm[char] ?? metrics.charWidthEm;
+  return Math.max(em, 0.2);
+}
+
+function lineVertical(line: string, fontFace?: EngraveFontFace | null) {
+  const metrics = fontMetrics(fontFace);
+  return {
+    ascent: TALL_RE.test(line) ? metrics.ascentTallEm : metrics.ascentEm,
+    descent: DESCENDER_RE.test(line) ? metrics.descentEm : metrics.descentFlatEm,
+  };
+}
+
+function textFactors(text: string, fontFace?: EngraveFontFace | null) {
   const lines = textLines(text);
-  const kW = Math.max(...lines.map(lineEmWidth));
-  const first = lineVertical(lines[0] ?? "");
-  const last = lineVertical(lines[lines.length - 1] ?? "");
+  const kW = Math.max(...lines.map((line) => lineEmWidth(line, fontFace)));
+  const first = lineVertical(lines[0] ?? "", fontFace);
+  const last = lineVertical(lines[lines.length - 1] ?? "", fontFace);
   const kH =
     lines.length <= 1
       ? first.ascent + first.descent
@@ -383,9 +424,58 @@ export function autoTextInset(plate: PlateSize) {
   };
 }
 
+/** Clearance between a hole edge and the legend, in millimetres. */
+export const HOLE_TEXT_GAP_MM = 0.4;
+/**
+ * When a hole is present, use a tight opposite-edge inset so a long legend
+ * can still use the remaining band. The usual 7.5% inset is too greedy on
+ * 30 × 10 mm cable-tie tags.
+ */
+export const HOLE_EDGE_INSET_MM = 0.4;
+
+/** Horizontal band left for engraving after any cut-through holes. */
+export function textBand(
+  plate: PlateSize,
+  options?: { gapMm?: number; edgeInsetMm?: number }
+) {
+  const holes = plate.holes ?? [];
+  const defaultInset = autoTextInset(plate).x;
+  const inset =
+    options?.edgeInsetMm ??
+    (holes.length > 0 ? Math.min(defaultInset, HOLE_EDGE_INSET_MM) : defaultInset);
+  const gap = options?.gapMm ?? HOLE_TEXT_GAP_MM;
+  if (holes.length === 0) {
+    const left = inset;
+    const right = plate.widthMm - inset;
+    return { left, right, width: Math.max(right - left, 0), centerX: plate.widthMm / 2 };
+  }
+  const holeRight = Math.max(...holes.map((hole) => hole.cx + hole.diameterMm / 2));
+  const holeLeft = Math.min(...holes.map((hole) => hole.cx - hole.diameterMm / 2));
+  const rightLeft = Math.max(inset, holeRight + gap);
+  const rightRight = plate.widthMm - inset;
+  const rightWidth = rightRight - rightLeft;
+  const leftLeft = inset;
+  const leftRight = Math.min(plate.widthMm - inset, holeLeft - gap);
+  const leftWidth = leftRight - leftLeft;
+  if (rightWidth >= leftWidth && rightWidth > 0) {
+    return {
+      left: Math.round(rightLeft * 1000) / 1000,
+      right: Math.round(rightRight * 1000) / 1000,
+      width: Math.round(rightWidth * 1000) / 1000,
+      centerX: Math.round(((rightLeft + rightRight) / 2) * 1000) / 1000,
+    };
+  }
+  return {
+    left: Math.round(leftLeft * 1000) / 1000,
+    right: Math.round(leftRight * 1000) / 1000,
+    width: Math.round(Math.max(leftWidth, 0) * 1000) / 1000,
+    centerX: Math.round(((leftLeft + leftRight) / 2) * 1000) / 1000,
+  };
+}
+
 function legendInnerWidth(plate: PlateSize) {
-  const inset = autoTextInset(plate);
-  return Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
+  const width = textBand(plate).width;
+  return Math.max(width, Math.min(plate.widthMm, 0.4));
 }
 
 function legendInnerHeight(plate: PlateSize) {
@@ -393,17 +483,17 @@ function legendInnerHeight(plate: PlateSize) {
   return Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
 }
 
-function arrangementScore(lines: string[]) {
-  const widths = lines.map(lineEmWidth);
+function arrangementScore(lines: string[], fontFace?: EngraveFontFace | null) {
+  const widths = lines.map((line) => lineEmWidth(line, fontFace));
   const maxW = Math.max(...widths);
   const minW = Math.min(...widths);
   return { maxW, balance: maxW - minW };
 }
 
 /** Smaller longest line, then the more even set. */
-function preferLines(current: string[], candidate: string[]) {
-  const next = arrangementScore(candidate);
-  const best = arrangementScore(current);
+function preferLines(current: string[], candidate: string[], fontFace?: EngraveFontFace | null) {
+  const next = arrangementScore(candidate, fontFace);
+  const best = arrangementScore(current, fontFace);
   if (next.maxW < best.maxW - 1e-6) return candidate;
   if (best.maxW < next.maxW - 1e-6) return current;
   if (next.balance < best.balance - 1e-6) return candidate;
@@ -454,20 +544,20 @@ function arrangements(text: string, lineCount: 2 | 3) {
   return found;
 }
 
-function linesFitInset(lines: string[], plate: PlateSize) {
-  const { maxW } = arrangementScore(lines);
+function linesFitInset(lines: string[], plate: PlateSize, fontFace?: EngraveFontFace | null) {
+  const { maxW } = arrangementScore(lines, fontFace);
   if (maxW * MIN_FONT_MM > legendInnerWidth(plate) + 1e-4) return false;
-  const { kH } = textFactors(lines.join("\n"));
+  const { kH } = textFactors(lines.join("\n"), fontFace);
   return kH * MIN_FONT_MM <= legendInnerHeight(plate) + 1e-4;
 }
 
-function narrowest(options: string[][], plate: PlateSize) {
+function narrowest(options: string[][], plate: PlateSize, fontFace?: EngraveFontFace | null) {
   const fittingHeight = options.filter((lines) => {
-    const { kH } = textFactors(lines.join("\n"));
+    const { kH } = textFactors(lines.join("\n"), fontFace);
     return kH * MIN_FONT_MM <= legendInnerHeight(plate) + 1e-4;
   });
   const pool = fittingHeight.length > 0 ? fittingHeight : options;
-  return pool.reduce((best, lines) => preferLines(best, lines));
+  return pool.reduce((best, lines) => preferLines(best, lines, fontFace));
 }
 
 /**
@@ -481,45 +571,53 @@ function narrowest(options: string[][], plate: PlateSize) {
  * legend is a manual break and stays as typed.
  * Example: `ADMIN-AC7-THEATRE` on a 20×10 becomes `ADMIN-AC7` / `THEATRE`.
  */
-export function wrapLegendToFit(text: string, plate: PlateSize): string {
+export function wrapLegendToFit(
+  text: string,
+  plate: PlateSize,
+  fontFace?: EngraveFontFace | null
+): string {
   if (text.includes("\n") || text.trim().length === 0) return text;
-  if (lineEmWidth(text) * MIN_FONT_MM <= legendInnerWidth(plate) + 1e-4) return text;
+  if (lineEmWidth(text, fontFace) * MIN_FONT_MM <= legendInnerWidth(plate) + 1e-4) return text;
 
   for (const count of [2, 3] as const) {
-    const fitting = arrangements(text, count).filter((lines) => linesFitInset(lines, plate));
+    const fitting = arrangements(text, count).filter((lines) =>
+      linesFitInset(lines, plate, fontFace)
+    );
     if (fitting.length > 0) {
-      return fitting.reduce((best, lines) => preferLines(best, lines)).join("\n");
+      return fitting.reduce((best, lines) => preferLines(best, lines, fontFace)).join("\n");
     }
   }
 
   const fallback = [...arrangements(text, 2), ...arrangements(text, 3)];
   if (fallback.length === 0) return text;
-  return narrowest(fallback, plate).join("\n");
+  return narrowest(fallback, plate, fontFace).join("\n");
 }
 
 /**
  * Largest type that fills the plate on the limiting axis, with that inset,
- * then centred (or pinned to that inset when the legend is left or right aligned).
+ * then centred in the engraving band. With no hole the band is the full plate.
+ * With a cable-tie hole it is the clear side, so the legend is not parked on the cut.
  */
 export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject {
-  const text = wrapLegendToFit(object.text, plate);
-  const { kW, kH, ascent } = textFactors(text);
+  const text = wrapLegendToFit(object.text, plate, object.fontFace);
+  const { kW, kH, ascent } = textFactors(text, object.fontFace);
   const inset = autoTextInset(plate);
-  const innerW = Math.max(plate.widthMm - inset.x * 2, Math.min(plate.widthMm, 0.4));
+  const band = textBand(plate);
+  const innerW = Math.max(band.width, Math.min(plate.widthMm, 0.4));
   const innerH = Math.max(plate.heightMm - inset.y * 2, Math.min(plate.heightMm, 0.4));
   const fit = Math.min(innerW / kW, innerH / kH);
   const fontSize = clamp(
     floorMm(Number.isFinite(fit) ? fit : MIN_FONT_MM),
     MIN_FONT_MM,
-    maxFontForPlate(text, plate)
+    maxFontForPlate(text, plate, object.fontFace)
   );
   const height = kH * fontSize;
   const x =
     object.align === "left"
-      ? inset.x
+      ? band.left
       : object.align === "right"
-        ? plate.widthMm - inset.x
-        : plate.widthMm / 2;
+        ? band.right
+        : band.centerX;
   const y = (plate.heightMm - height) / 2 + ascent * fontSize;
   return clampObjectToPlate(
     { ...object, fontSize, x: roundMm(x), y: roundMm(y) },
@@ -532,16 +630,16 @@ export function fitTextToPlate(object: TextObject, plate: PlateSize): TextObject
  * same word-boundary wrap the designer uses. This is not raised to
  * {@link MIN_FONT_MM}: a long legend may only fit smaller than that floor.
  */
-export function legendFitFontMm(text: string, plate: PlateSize) {
-  const wrapped = wrapLegendToFit(text, plate);
-  const { kW, kH } = textFactors(wrapped);
+export function legendFitFontMm(text: string, plate: PlateSize, fontFace?: EngraveFontFace | null) {
+  const wrapped = wrapLegendToFit(text, plate, fontFace);
+  const { kW, kH } = textFactors(wrapped, fontFace);
   const fit = Math.min(legendInnerWidth(plate) / kW, legendInnerHeight(plate) / kH);
   if (!Number.isFinite(fit) || fit <= 0) return 0.1;
   return Math.min(MAX_FONT_MM, floorMm(Math.max(fit, 0.1)));
 }
 
-export function capHeightMm(fontSize: number) {
-  return Math.round(fontSize * CAP_HEIGHT_EM * 1000) / 1000;
+export function capHeightMm(fontSize: number, fontFace?: EngraveFontFace | null) {
+  return Math.round(fontSize * capHeightEmOf(fontFace) * 1000) / 1000;
 }
 
 /** Collapse baked line breaks so a new size can wrap the legend again. */
@@ -549,10 +647,15 @@ export function singleLineLegend(text: string) {
   return text.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function linesFitAtFont(lines: string[], plate: PlateSize, fontSize: number) {
-  const width = Math.max(...lines.map(lineEmWidth));
+function linesFitAtFont(
+  lines: string[],
+  plate: PlateSize,
+  fontSize: number,
+  fontFace?: EngraveFontFace | null
+) {
+  const width = Math.max(...lines.map((line) => lineEmWidth(line, fontFace)));
   if (width * fontSize > legendInnerWidth(plate) + 1e-4) return false;
-  const { kH } = textFactors(lines.join("\n"));
+  const { kH } = textFactors(lines.join("\n"), fontFace);
   return kH * fontSize <= legendInnerHeight(plate) + 1e-4;
 }
 
@@ -571,10 +674,15 @@ export type FixedLegendLayout = {
  * Wrap a legend so it fits at one exact em size. One line is preferred, then
  * two, then three, on spaces and hyphens only. The size is never reduced.
  */
-export function layoutLegendAtFont(text: string, plate: PlateSize, fontSize: number): FixedLegendLayout {
+export function layoutLegendAtFont(
+  text: string,
+  plate: PlateSize,
+  fontSize: number,
+  fontFace?: EngraveFontFace | null
+): FixedLegendLayout {
   const source = singleLineLegend(text);
   const choose = (lines: string[], fits: boolean): FixedLegendLayout => {
-    const { kW, kH } = textFactors(lines.join("\n"));
+    const { kW, kH } = textFactors(lines.join("\n"), fontFace);
     const horizontal = (legendInnerWidth(plate) - kW * fontSize) / 2;
     const vertical = (legendInnerHeight(plate) - kH * fontSize) / 2;
     const round = (value: number) => Math.round(value * 1000) / 1000;
@@ -589,22 +697,24 @@ export function layoutLegendAtFont(text: string, plate: PlateSize, fontSize: num
     };
   };
   if (!source) return choose([""], true);
-  if (linesFitAtFont([source], plate, fontSize)) return choose([source], true);
+  if (linesFitAtFont([source], plate, fontSize, fontFace)) return choose([source], true);
   for (const count of [2, 3] as const) {
-    const fitting = arrangements(source, count).filter((lines) => linesFitAtFont(lines, plate, fontSize));
+    const fitting = arrangements(source, count).filter((lines) =>
+      linesFitAtFont(lines, plate, fontSize, fontFace)
+    );
     if (fitting.length > 0) {
-      return choose(fitting.reduce((best, lines) => preferLines(best, lines)), true);
+      return choose(fitting.reduce((best, lines) => preferLines(best, lines, fontFace)), true);
     }
   }
   const fallback = [...arrangements(source, 2), ...arrangements(source, 3)];
-  if (fallback.length === 0) return choose([source], linesFitAtFont([source], plate, fontSize));
+  if (fallback.length === 0) return choose([source], linesFitAtFont([source], plate, fontSize, fontFace));
   const fittingHeight = fallback.filter((lines) => {
-    const { kH } = textFactors(lines.join("\n"));
+    const { kH } = textFactors(lines.join("\n"), fontFace);
     return kH * fontSize <= legendInnerHeight(plate) + 1e-4;
   });
   const pool = fittingHeight.length > 0 ? fittingHeight : fallback;
-  const chosen = pool.reduce((best, lines) => preferLines(best, lines));
-  return choose(chosen, linesFitAtFont(chosen, plate, fontSize));
+  const chosen = pool.reduce((best, lines) => preferLines(best, lines, fontFace));
+  return choose(chosen, linesFitAtFont(chosen, plate, fontSize, fontFace));
 }
 
 /** Largest 0.1 mm size at which every legend fits, or null when none of the steps fit. */
@@ -620,21 +730,23 @@ export function largestFixedTextMm(
 }
 
 /** Place a legend at an exact em size, wrapped and centred inside the inset. */
-export function placeLegendAtSize<T extends Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align">>(
+export function placeLegendAtSize<
+  T extends Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align" | "fontFace">,
+>(
   object: T,
   plate: PlateSize,
   fontSize: number
 ): T {
-  const text = wrapLegendToFit(object.text, plate);
-  const { kH, ascent } = textFactors(text);
-  const inset = autoTextInset(plate);
+  const text = wrapLegendToFit(object.text, plate, object.fontFace);
+  const { kH, ascent } = textFactors(text, object.fontFace);
+  const band = textBand(plate);
   const height = kH * fontSize;
   const x =
     object.align === "left"
-      ? inset.x
+      ? band.left
       : object.align === "right"
-        ? plate.widthMm - inset.x
-        : plate.widthMm / 2;
+        ? band.right
+        : band.centerX;
   const y = (plate.heightMm - height) / 2 + ascent * fontSize;
   return {
     ...object,
@@ -693,10 +805,11 @@ type UniformPlate = {
   widthMm: number;
   heightMm: number;
   text: string;
+  holes?: PlateHole[];
   uniformTextSize?: boolean;
   /** Set when every plate in the order uses this exact em size. */
   uniformTextMm?: number;
-  objects: Array<Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align">>;
+  objects: Array<Pick<TextObject, "text" | "x" | "y" | "fontSize" | "align" | "fontWeight" | "fontFace">>;
 };
 
 /** Every plate of one size gets the largest em that still fits every legend of that size. */
@@ -730,16 +843,16 @@ export function applyUniformTextSize<T extends UniformPlate>(plates: T[]): T[] {
 export function applyFixedTextSize<T extends UniformPlate>(plates: T[], fontSize: number): T[] {
   return plates.map((plate) => {
     const objects = plate.objects.map((object) => {
-      const laid = layoutLegendAtFont(object.text, plate, fontSize);
-      const { kH, ascent } = textFactors(laid.text);
-      const inset = autoTextInset(plate);
+      const laid = layoutLegendAtFont(object.text, plate, fontSize, object.fontFace);
+      const { kH, ascent } = textFactors(laid.text, object.fontFace);
+      const band = textBand(plate);
       const height = kH * fontSize;
       const x =
         object.align === "left"
-          ? inset.x
+          ? band.left
           : object.align === "right"
-            ? plate.widthMm - inset.x
-            : plate.widthMm / 2;
+            ? band.right
+            : band.centerX;
       const y = (plate.heightMm - height) / 2 + ascent * fontSize;
       return {
         ...object,
@@ -794,11 +907,16 @@ export function restoreIndividualLegendFit<T extends UniformPlate>(plates: T[]):
  * is wrapped and refitted the same way as the designer.
  */
 export function engraveLayout<
-  T extends Pick<TextObject, "id" | "text" | "x" | "y" | "fontSize" | "align">,
+  T extends Pick<TextObject, "id" | "text" | "x" | "y" | "fontSize" | "align" | "fontFace">,
 >(object: T, plate: PlateSize): T {
-  const atFont = layoutLegendAtFont(singleLineLegend(object.text), plate, object.fontSize);
+  const atFont = layoutLegendAtFont(
+    singleLineLegend(object.text),
+    plate,
+    object.fontSize,
+    object.fontFace
+  );
   if (atFont.text === object.text) return object;
-  const text = wrapLegendToFit(object.text, plate);
+  const text = wrapLegendToFit(object.text, plate, object.fontFace);
   if (text === object.text) return object;
   const fitted = fitTextToPlate(
     {
@@ -809,6 +927,7 @@ export function engraveLayout<
       y: object.y,
       fontSize: object.fontSize,
       align: object.align,
+      ...(object.fontFace ? { fontFace: object.fontFace } : {}),
     },
     plate
   );
@@ -852,8 +971,8 @@ function textBox(object: TextObject, plate?: PlateSize): TextBox {
 }
 
 /** Largest 0.1 mm font that still fits the legend box on the plate. */
-export function maxFontForPlate(text: string, plate: PlateSize) {
-  const { kW, kH } = textFactors(wrapLegendToFit(text, plate));
+export function maxFontForPlate(text: string, plate: PlateSize, fontFace?: EngraveFontFace | null) {
+  const { kW, kH } = textFactors(wrapLegendToFit(text, plate, fontFace), fontFace);
   const fit = Math.min(plate.widthMm / kW, plate.heightMm / kH);
   if (!Number.isFinite(fit) || fit <= MIN_FONT_MM) return MIN_FONT_MM;
   return clamp(floorMm(Math.min(MAX_FONT_MM, fit)), MIN_FONT_MM, MAX_FONT_MM);
@@ -890,7 +1009,7 @@ export function clampObjectToPlate(object: TextObject, plate: PlateSize): TextOb
   const fontSize = clamp(
     roundMm(object.fontSize),
     MIN_FONT_MM,
-    maxFontForPlate(object.text, plate)
+    maxFontForPlate(object.text, plate, object.fontFace)
   );
   const rounded = containTextOnPlate(
     { ...object, fontSize, x: roundMm(object.x), y: roundMm(object.y) },
@@ -1009,7 +1128,7 @@ function placeWithPins(
 ): TextObject {
   const fontSize = object.fontSize;
   const width = kW * fontSize;
-  const { ascent } = textFactors(wrapLegendToFit(object.text, plate));
+  const { ascent } = textFactors(wrapLegendToFit(object.text, plate, object.fontFace), object.fontFace);
   let x = object.x;
   let y = object.y;
 
@@ -1064,7 +1183,7 @@ export function resizeTextObject(
   origin: Point
 ): TextObject {
   const box = textBox(start, plate);
-  const { kW, kH } = textFactors(wrapLegendToFit(start.text, plate));
+  const { kW, kH } = textFactors(wrapLegendToFit(start.text, plate, start.fontFace), start.fontFace);
   const scale = scaleFromPointer(handle, box, pointer, origin);
   const fontSize = clamp(
     roundMm(start.fontSize * Math.max(0, scale)),
@@ -1086,9 +1205,23 @@ export function shrinkTextToPlate(
   plate: Pick<LabelDesign, "widthMm" | "heightMm">
 ): TextObject {
   const fitted = fitTextToPlate(object, plate);
-  const reflowed = wrapLegendToFit(object.text, plate) !== object.text;
+  const reflowed = wrapLegendToFit(object.text, plate, object.fontFace) !== object.text;
   if (reflowed || fitted.fontSize + 0.05 < object.fontSize) return fitted;
   return clampObjectToPlate(object, plate);
+}
+
+function scaleHoles(
+  holes: PlateHole[] | undefined,
+  sx: number,
+  sy: number,
+  scale: number
+): PlateHole[] | undefined {
+  if (!holes || holes.length === 0) return holes;
+  return holes.map((hole) => ({
+    cx: roundMm(hole.cx * sx),
+    cy: roundMm(hole.cy * sy),
+    diameterMm: roundMm(hole.diameterMm * scale),
+  }));
 }
 
 export function applyPlateSize(
@@ -1100,16 +1233,18 @@ export function applyPlateSize(
   if (size.widthMm === design.widthMm && size.heightMm === design.heightMm) {
     return design;
   }
+  const sx = size.widthMm / design.widthMm;
+  const sy = size.heightMm / design.heightMm;
+  const scale = Math.min(sx, sy);
+  const holes = scaleHoles(design.holes, sx, sy, scale);
   if (design.objects.length <= 1) {
     return {
       ...design,
       ...size,
       objects: design.objects.map((object) => fitTextToPlate(object, size)),
+      ...(holes && holes.length > 0 ? { holes } : {}),
     };
   }
-  const sx = size.widthMm / design.widthMm;
-  const sy = size.heightMm / design.heightMm;
-  const scale = Math.min(sx, sy);
   return {
     ...design,
     ...size,
@@ -1124,6 +1259,7 @@ export function applyPlateSize(
         size
       )
     ),
+    ...(holes && holes.length > 0 ? { holes } : {}),
   };
 }
 
@@ -1210,7 +1346,58 @@ function serializeTextElement(object: TextObject, fill: string, plate: PlateSize
     .map((line, index) => {
       const y = Math.round((laid.y + index * step) * 1000) / 1000;
       const id = lines.length > 1 ? `engrave-${laid.id}-line${index + 1}` : `engrave-${laid.id}`;
-      return `<text id="${escapeXml(id)}" x="${laid.x}" y="${y}" fill="${fill}" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
+      const weight = laid.fontWeight ?? ENGRAVE_FONT_WEIGHT;
+      const family = engraveFontFamily(laid.fontFace);
+      return `<text id="${escapeXml(id)}" x="${laid.x}" y="${y}" fill="${fill}" font-family="${family}" font-size="${laid.fontSize}" font-weight="${weight}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
+    })
+    .join("");
+}
+
+
+export function isEngraveFontWeight(value: unknown): value is EngraveFontWeight {
+  return value === 400 || value === 700;
+}
+
+export function normalizeHoles(value: unknown): PlateHole[] {
+  if (!Array.isArray(value)) return [];
+  const holes: PlateHole[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const raw = item as Partial<PlateHole>;
+    if (
+      typeof raw.cx !== "number" ||
+      typeof raw.cy !== "number" ||
+      typeof raw.diameterMm !== "number" ||
+      !Number.isFinite(raw.cx) ||
+      !Number.isFinite(raw.cy) ||
+      !Number.isFinite(raw.diameterMm) ||
+      raw.diameterMm <= 0
+    ) {
+      continue;
+    }
+    holes.push({
+      cx: Math.round(raw.cx * 1000) / 1000,
+      cy: Math.round(raw.cy * 1000) / 1000,
+      diameterMm: Math.round(raw.diameterMm * 1000) / 1000,
+    });
+  }
+  return holes;
+}
+
+/** Cut-layer circles. `fill` should be "none" for production, face colour on a proof. */
+export function serializeHoleCircles(
+  holes: PlateHole[] | undefined,
+  stroke: string,
+  strokeWidth: number,
+  fill = "none",
+  idPrefix = ""
+) {
+  if (!holes || holes.length === 0) return "";
+  const prefix = escapeXml(idPrefix);
+  return holes
+    .map((hole, index) => {
+      const r = Math.round((hole.diameterMm / 2) * 1000) / 1000;
+      return `<circle id="${prefix}hole-${index + 1}" cx="${hole.cx}" cy="${hole.cy}" r="${r}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
     })
     .join("");
 }
@@ -1237,6 +1424,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
   const texts = design.objects
     .map((object) => serializeTextElement(object, "#FF0000", design))
     .join("\n    ");
+  const holes = serializeHoleCircles(design.holes, "#000000", 0.1);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${design.widthMm}mm" height="${design.heightMm}mm" viewBox="0 0 ${design.widthMm} ${design.heightMm}">
@@ -1249,7 +1437,7 @@ export function serializeLightBurnSvg(design: LabelDesign) {
     ${escapeXml(JSON.stringify(serializeDesignJson(design)))}
   </metadata>
   <g id="cut" inkscape:groupmode="layer" inkscape:label="cut" data-layer="cut">
-    <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#000000" stroke-width="0.1"/>
+    <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#000000" stroke-width="0.1"/>${holes ? `\n    ${holes}` : ""}
   </g>
   <g id="guide" inkscape:groupmode="layer" inkscape:label="guide" data-layer="guide">
     <rect x="0" y="0" width="${design.widthMm}" height="${design.heightMm}" rx="0" ry="0" fill="none" stroke="#0000FF" stroke-width="0.05"/>
@@ -1295,7 +1483,7 @@ function parseTextObject(value: unknown): TextObject | null {
   ) {
     return null;
   }
-  return {
+  const parsed: TextObject = {
     id: object.id,
     type: "text",
     text: object.text,
@@ -1304,6 +1492,13 @@ function parseTextObject(value: unknown): TextObject | null {
     fontSize: object.fontSize,
     align: object.align,
   };
+  if (isEngraveFontWeight(object.fontWeight) && object.fontWeight !== 400) {
+    parsed.fontWeight = object.fontWeight;
+  }
+  if (object.fontFace === "condensed") {
+    parsed.fontFace = "condensed";
+  }
+  return parsed;
 }
 
 export function parseDesign(
@@ -1329,12 +1524,14 @@ export function parseDesign(
     options?.snapToPreset === true
       ? clampPlateSize(draft.widthMm, draft.heightMm)
       : clampFreeformPlateSize(draft.widthMm, draft.heightMm);
+  const holes = normalizeHoles(draft.holes);
   return {
     version: DESIGN_VERSION,
     ...size,
     colourPair: draft.colourPair,
     adhesive3m: draft.adhesive3m,
     objects: objects.map((object) => shrinkTextToPlate(object, size)),
+    ...(holes.length > 0 ? { holes } : {}),
   };
 }
 

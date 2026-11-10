@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   colourPairOf,
-  ENGRAVE_FONT_FAMILY,
   ENGRAVE_FONT_WEIGHT,
   LINE_HEIGHT,
   resizeHandlePoints,
@@ -17,6 +16,7 @@ import {
   type ResizeHandle,
   type TextObject,
 } from "@/lib/label-design";
+import { engraveFontFamily } from "@/lib/engrave-fonts";
 
 type Point = { x: number; y: number };
 
@@ -73,7 +73,11 @@ export function PlateCanvas({
   const stopDragRef = useRef<(() => void) | null>(null);
   const onMoveRef = useRef(onMove);
   const onResizeRef = useRef(onResize);
-  const plateRef = useRef({ widthMm: design.widthMm, heightMm: design.heightMm });
+  const plateRef = useRef<{
+    widthMm: number;
+    heightMm: number;
+    holes?: LabelDesign["holes"];
+  }>({ widthMm: design.widthMm, heightMm: design.heightMm });
   const [scale, setScale] = useState(4);
   const [dragging, setDragging] = useState(false);
   const colours = colourPairOf(design);
@@ -82,7 +86,11 @@ export function PlateCanvas({
   useEffect(() => {
     onMoveRef.current = onMove;
     onResizeRef.current = onResize;
-    plateRef.current = { widthMm: design.widthMm, heightMm: design.heightMm };
+    plateRef.current = {
+      widthMm: design.widthMm,
+      heightMm: design.heightMm,
+      holes: design.holes,
+    };
   });
 
   useEffect(() => {
@@ -249,11 +257,24 @@ export function PlateCanvas({
           fill={colours.face}
         />
 
+        {(design.holes ?? []).map((hole, index) => (
+          <circle
+            key={`hole-${index}`}
+            cx={hole.cx}
+            cy={hole.cy}
+            r={hole.diameterMm / 2}
+            fill="#E8E8E8"
+            stroke="#222222"
+            strokeWidth={0.2}
+            pointerEvents="none"
+          />
+        ))}
+
         {design.objects.map((object) => (
           <TextNode
             key={object.id}
             object={object}
-            plate={{ widthMm: design.widthMm, heightMm: design.heightMm }}
+            plate={{ widthMm: design.widthMm, heightMm: design.heightMm, holes: design.holes }}
             fill={colours.core}
             dragging={dragging && object.id === selectedId}
             scale={scale}
@@ -264,7 +285,7 @@ export function PlateCanvas({
         {selected ? (
           <ResizeHandles
             object={selected}
-            plate={{ widthMm: design.widthMm, heightMm: design.heightMm }}
+            plate={{ widthMm: design.widthMm, heightMm: design.heightMm, holes: design.holes }}
             scale={scale}
             onPointerDown={handleResizePointerDown}
           />
@@ -283,7 +304,7 @@ function TextNode({
   onPointerDown,
 }: {
   object: TextObject;
-  plate: { widthMm: number; heightMm: number };
+  plate: { widthMm: number; heightMm: number; holes?: LabelDesign["holes"] };
   fill: string;
   dragging: boolean;
   scale: number;
@@ -293,7 +314,7 @@ function TextNode({
   ) => void;
 }) {
   const metrics = textMetrics(object, plate);
-  const lines = textLines(wrapLegendToFit(object.text, plate));
+  const lines = textLines(wrapLegendToFit(object.text, plate, object.fontFace));
   const slop = 6 / scale;
 
   return (
@@ -315,8 +336,8 @@ function TextNode({
         fontSize={object.fontSize}
         textAnchor={textAnchor(object.align)}
         style={{
-          fontFamily: ENGRAVE_FONT_FAMILY,
-          fontWeight: ENGRAVE_FONT_WEIGHT,
+          fontFamily: engraveFontFamily(object.fontFace),
+          fontWeight: object.fontWeight ?? ENGRAVE_FONT_WEIGHT,
           userSelect: "none",
         }}
       >
@@ -341,7 +362,7 @@ function ResizeHandles({
   onPointerDown,
 }: {
   object: TextObject;
-  plate: { widthMm: number; heightMm: number };
+  plate: { widthMm: number; heightMm: number; holes?: LabelDesign["holes"] };
   scale: number;
   onPointerDown: (
     event: React.PointerEvent<SVGRectElement>,

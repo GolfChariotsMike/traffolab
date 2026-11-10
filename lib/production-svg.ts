@@ -7,11 +7,12 @@
  */
 
 import {
-  ENGRAVE_FONT_FAMILY,
   ENGRAVE_FONT_WEIGHT,
   LINE_HEIGHT,
   engraveLayout,
+  serializeHoleCircles,
 } from "@/lib/label-design";
+import { engraveFontFamily } from "@/lib/engrave-fonts";
 import type { PlateObject, StoredPlate } from "@/lib/orders";
 
 export const ENGRAVE_FILL = "#000000";
@@ -43,7 +44,7 @@ export function plateCopyCount(qty: number) {
 export function serializeEngraveText(
   object: PlateObject,
   idSuffix = "",
-  plate?: Pick<StoredPlate, "widthMm" | "heightMm">
+  plate?: Pick<StoredPlate, "widthMm" | "heightMm" | "holes">
 ) {
   const laid = plate ? engraveLayout(object, plate) : object;
   const lines = laid.text.length > 0 ? laid.text.split("\n") : [""];
@@ -55,17 +56,20 @@ export function serializeEngraveText(
     .map((line, index) => {
       const y = Math.round((laid.y + index * step) * 1000) / 1000;
       const lineId = lines.length > 1 ? `${id}-line${index + 1}` : id;
-      return `<text id="${escapeXml(lineId)}" x="${laid.x}" y="${y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${ENGRAVE_FONT_FAMILY}" font-size="${laid.fontSize}" font-weight="${ENGRAVE_FONT_WEIGHT}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
+      const weight = laid.fontWeight ?? ENGRAVE_FONT_WEIGHT;
+      const family = engraveFontFamily(laid.fontFace);
+      return `<text id="${escapeXml(lineId)}" x="${laid.x}" y="${y}" fill="${ENGRAVE_FILL}" stroke="none" font-family="${family}" font-size="${laid.fontSize}" font-weight="${weight}" text-anchor="${textAnchor(laid.align)}">${escapeXml(line || " ")}</text>`;
     })
     .join("");
 }
 
 export function serializeProductionSvg(
-  plate: Pick<StoredPlate, "widthMm" | "heightMm" | "colourLabel" | "adhesive3m" | "objects">
+  plate: Pick<StoredPlate, "widthMm" | "heightMm" | "colourLabel" | "adhesive3m" | "objects" | "holes">
 ) {
   const texts = plate.objects
     .map((object) => serializeEngraveText(object, "", plate))
     .join("\n    ");
+  const holes = serializeHoleCircles(plate.holes, CUT_STROKE, 0.1);
   const material = plate.colourLabel
     ? `${plate.colourLabel}${plate.adhesive3m ? " · 3M adhesive" : ""}`
     : "unspecified laminate";
@@ -74,13 +78,13 @@ export function serializeProductionSvg(
 <svg xmlns="http://www.w3.org/2000/svg" width="${plate.widthMm}mm" height="${plate.heightMm}mm" viewBox="0 0 ${plate.widthMm} ${plate.heightMm}">
   <!-- TraffLabels production file. 1 user unit = 1 mm. Document size is the ordered plate. -->
   <!-- LightBurn: if import asks for SVG DPI, use ${LIGHTBURN_SVG_DPI} (Silhouette used 96 DPI). -->
-  <!-- Black fill ${ENGRAVE_FILL} = engrave (text). Red stroke ${CUT_STROKE} = outer cut line. -->
+  <!-- Black fill ${ENGRAVE_FILL} = engrave (text). Red stroke ${CUT_STROKE} = outer cut line and any hole cuts. -->
   <!-- Laminate (not a laser colour): ${escapeXml(material)} -->
   <g id="engrave" data-layer="engrave">
     ${texts}
   </g>
   <g id="cut" data-layer="cut">
-    <rect x="0" y="0" width="${plate.widthMm}" height="${plate.heightMm}" fill="none" stroke="${CUT_STROKE}" stroke-width="0.1"/>
+    <rect x="0" y="0" width="${plate.widthMm}" height="${plate.heightMm}" fill="none" stroke="${CUT_STROKE}" stroke-width="0.1"/>${holes ? `\n    ${holes}` : ""}
   </g>
 </svg>
 `;

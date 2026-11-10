@@ -136,7 +136,18 @@ export function canonicalPlates(plates: StoredPlate[]) {
       y: object.y,
       fontSize: object.fontSize,
       align: object.align,
+      ...(object.fontWeight === 700 ? { fontWeight: 700 as const } : {}),
+      ...(object.fontFace === "condensed" ? { fontFace: "condensed" as const } : {}),
     })),
+    ...(Array.isArray(plate.holes) && plate.holes.length > 0
+      ? {
+          holes: plate.holes.map((hole) => ({
+            cx: hole.cx,
+            cy: hole.cy,
+            diameterMm: hole.diameterMm,
+          })),
+        }
+      : {}),
     ...(typeof plate.uniformTextMm === "number" ? { uniformTextMm: plate.uniformTextMm } : {}),
     ...(plate.uniformTextSize === true && typeof plate.uniformTextMm !== "number"
       ? { uniformTextSize: true as const }
