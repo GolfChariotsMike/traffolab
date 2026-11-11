@@ -2,15 +2,19 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { ResponseCookies } from "next/dist/compiled/@edge-runtime/cookies/index.js";
 import {
   MAGIC_LINK_MS,
   ORDERS_COOKIE,
+  ORDERS_SESSION_MS,
   adminEmails,
   authSecret,
+  clearOrdersCookieOptions,
   dashboardConfigured,
   isAllowlistedEmail,
   magicLinkOrigin,
   magicLinkUrl,
+  ordersCookieOptions,
   readOrdersSession,
   signMagicLink,
   signOrdersSession,
@@ -79,11 +83,58 @@ delete process.env.ORDERS_ADMIN_EMAILS;
 
 const session = signOrdersSession("info@stikstickers.com", now);
 assert.ok(session);
+assert.equal(ORDERS_SESSION_MS, 30 * 24 * 60 * 60 * 1000);
 assert.equal(verifyOrdersSession(session!, now + 1000), true);
 assert.equal(readOrdersSession(session!, now + 1000)?.email, "info@stikstickers.com");
-assert.equal(verifyOrdersSession(session!, now + 8 * 24 * 60 * 60 * 1000), false);
+assert.equal(verifyOrdersSession(session!, now + 8 * 24 * 60 * 60 * 1000), true);
+assert.equal(verifyOrdersSession(session!, now + ORDERS_SESSION_MS - 1000), true);
+assert.equal(verifyOrdersSession(session!, now + ORDERS_SESSION_MS), false);
 assert.equal(verifyOrdersSession("v1.9999999999999.not-a-password-session", now + 1000), false);
 assert.equal(verifyOrdersSession(undefined, now), false);
+
+const cookie = ordersCookieOptions(now);
+assert.equal(cookie.httpOnly, true);
+assert.equal(cookie.sameSite, "lax");
+assert.equal(cookie.path, "/");
+assert.equal(cookie.secure, false);
+assert.equal(cookie.maxAge, ORDERS_SESSION_MS / 1000);
+assert.equal(cookie.expires.getTime(), now + ORDERS_SESSION_MS);
+setNodeEnv("production");
+assert.equal(ordersCookieOptions(now).secure, true);
+setNodeEnv("test");
+
+const cleared = clearOrdersCookieOptions();
+assert.equal(cleared.maxAge, 0);
+assert.equal(cleared.expires.getTime(), 0);
+assert.equal(cleared.path, "/");
+assert.equal(cleared.httpOnly, true);
+
+{
+  setNodeEnv("production");
+  const headers = new Headers();
+  const jar = new ResponseCookies(headers);
+  jar.set(ORDERS_COOKIE, session!, ordersCookieOptions(now));
+  const setCookie = headers.getSetCookie().find((value) => value.startsWith(`${ORDERS_COOKIE}=`));
+  assert.ok(setCookie);
+  assert.match(setCookie!, /Max-Age=2592000/);
+  assert.match(setCookie!, /Expires=/);
+  assert.match(setCookie!, /HttpOnly/);
+  assert.match(setCookie!, /Secure/);
+  assert.match(setCookie!, /Path=\//);
+  assert.match(setCookie!, /SameSite=lax/);
+  assert.doesNotMatch(setCookie!, /Max-Age=604800/);
+
+  const logoutHeaders = new Headers();
+  const logoutJar = new ResponseCookies(logoutHeaders);
+  logoutJar.set(ORDERS_COOKIE, "", clearOrdersCookieOptions());
+  const clearedCookie = logoutHeaders.getSetCookie().find((value) => value.startsWith(`${ORDERS_COOKIE}=`));
+  assert.ok(clearedCookie);
+  assert.match(clearedCookie!, /Max-Age=0/);
+  assert.match(clearedCookie!, /Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
+  assert.match(clearedCookie!, /Secure/);
+  assert.match(clearedCookie!, /HttpOnly/);
+  setNodeEnv("test");
+}
 
 const header = `other=1; ${ORDERS_COOKIE}=${encodeURIComponent(session!)}`;
 assert.equal(tokenFromCookieHeader(header), session);

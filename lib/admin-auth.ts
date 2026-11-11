@@ -3,7 +3,8 @@ import { CANONICAL_CHECKOUT_ORIGIN } from "@/lib/checkout-return";
 
 export const ORDERS_COOKIE = "trafflabels_orders";
 export const MAGIC_LINK_MS = 20 * 60 * 1000;
-const SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+/** Signed admin session. The cookie Max-Age and Expires use the same duration. */
+export const ORDERS_SESSION_MS = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_ADMIN_EMAIL = "info@stikstickers.com";
 const DEV_AUTH_SECRET = "trafflabels-dev-auth-secret";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,7 +113,7 @@ export function signOrdersSession(email: string, now = Date.now()) {
   if (!authSecret()) return null;
   const normalized = normalizeEmail(email);
   if (!normalized || !isAllowlistedEmail(normalized)) return null;
-  const exp = now + SESSION_MS;
+  const exp = now + ORDERS_SESSION_MS;
   const payload = `v2.${encodeEmail(normalized)}.${exp}`;
   return `${payload}.${sign(payload)}`;
 }
@@ -135,13 +136,24 @@ export function verifyOrdersSession(token: string | undefined, now = Date.now())
   return readOrdersSession(token, now) !== null;
 }
 
-export function ordersCookieOptions() {
+export function ordersCookieOptions(now = Date.now()) {
+  const maxAge = Math.floor(ORDERS_SESSION_MS / 1000);
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: Math.floor(SESSION_MS / 1000),
+    maxAge,
+    expires: new Date(now + maxAge * 1000),
+  };
+}
+
+/** Drop the session immediately. Max-Age 0 and a past Expires agree, so clients delete it. */
+export function clearOrdersCookieOptions() {
+  return {
+    ...ordersCookieOptions(0),
+    maxAge: 0,
+    expires: new Date(0),
   };
 }
 
