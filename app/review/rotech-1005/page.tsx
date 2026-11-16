@@ -4,15 +4,15 @@ import { ID_TAG_FONT_MM, ID_TAG_HOLE, rotech1005Plates, rotech1005TagBand } from
 import { capHeightMm } from "@/lib/label-design";
 import { orderItemCount, type StoredPlate } from "@/lib/orders";
 import { proofPlateSvg } from "@/lib/proof-plate";
-import { productName } from "@/lib/site";
+import { productName, withCanonical } from "@/lib/site";
 
 export const dynamic = "force-static";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical("/review/rotech-1005/", {
   title: `Review · Order #1005 | ${productName}`,
   description: "Internal preview of the proposed TraffLabels #1005 proof layout.",
   robots: { index: false, follow: false },
-};
+});
 
 function PlateFigure({ plate }: { plate: StoredPlate }) {
   const svg = proofPlateSvg(plate);

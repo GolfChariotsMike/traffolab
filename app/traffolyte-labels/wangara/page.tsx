@@ -41,22 +41,13 @@ const wangara = {
   faq: [
     {
       question: "Can Wangara jobs hit a same-week target?",
-      answer: (
-        <p>
-          Same-week turnaround is the target for standard legends once checkout
-          is complete and the job is in the LightBurn nest. Large schedules or
-          unusual colours can slip.
-        </p>
-      ),
+      answer:
+        "Same-week turnaround is the target for standard legends once checkout is complete and the job is in the LightBurn nest. Large schedules or unusual colours can slip.",
     },
     {
       question: "Is Wangara a separate factory?",
-      answer: (
-        <p>
-          No. All TraffLabels engraving is WA production under the Stik Stickers
-          group. Wangara is a delivery and trade area, not a second plant.
-        </p>
-      ),
+      answer:
+        "No. All TraffLabels engraving is WA production under the Stik Stickers group. Wangara is a delivery and trade area, not a second plant.",
     },
   ],
 };

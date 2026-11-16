@@ -5,20 +5,29 @@ import { EngravingScrub } from "@/components/engraving-scrub";
 import { HomeHero } from "@/components/home-hero";
 import { UseCases } from "@/components/use-cases";
 import { JsonLd } from "@/components/json-ld";
-import { absoluteUrl, routes, siteName } from "@/lib/site";
-import { organizationNode, websiteNode } from "@/lib/structured-data";
+import { routes, siteName, withCanonical } from "@/lib/site";
+import {
+  breadcrumbNode,
+  localBusinessNode,
+  websiteNode,
+} from "@/lib/structured-data";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical(routes.home, {
   title: `${siteName} | Traffolyte Labels for Perth Trades & Custom Work`,
   description:
     "Traffolyte labels for Perth trades. Upload a schedule, design a plate online, or contact TraffLabels. Engraved in WA by the Stik Stickers group.",
-  alternates: { canonical: absoluteUrl(routes.home) },
-};
+});
 
 export default function HomePage() {
   return (
     <>
-      <JsonLd data={[organizationNode(), websiteNode()]} />
+      <JsonLd
+        data={[
+          localBusinessNode(),
+          websiteNode(),
+          breadcrumbNode([{ name: "Home", path: routes.home }]),
+        ]}
+      />
       <HomeHero />
       <EngravingScrub />
       <UseCases />

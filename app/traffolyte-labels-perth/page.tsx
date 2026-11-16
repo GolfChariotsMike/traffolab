@@ -13,17 +13,18 @@ import { PageHero } from "@/components/page-hero";
 import { RelatedLinks } from "@/components/related-links";
 import { Section, SectionHeading } from "@/components/section";
 import { JsonLd } from "@/components/json-ld";
-import { absoluteUrl, routes } from "@/lib/site";
-import { breadcrumbNode, serviceNode } from "@/lib/structured-data";
+import { faqAnswerText } from "@/lib/faq";
+import { perthFaq } from "@/lib/perth-faq";
+import { routes, withCanonical } from "@/lib/site";
+import { breadcrumbNode, faqPageNode, serviceNode } from "@/lib/structured-data";
 
 const description =
   "Order custom Traffolyte labels in Perth — switchboard, circuit ID, and industrial tags. Design online, engraved in WA, Australia-wide shipping. Same-week turnaround target.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical(routes.hub, {
   title: "Traffolyte Labels Perth | Design Online, Engraved in WA | TraffLabels",
   description,
-  alternates: { canonical: absoluteUrl(routes.hub) },
-};
+});
 
 export default function PerthHubPage() {
   return (
@@ -40,6 +41,12 @@ export default function PerthHubPage() {
             { name: "Home", path: routes.home },
             { name: "Traffolyte labels Perth", path: routes.hub },
           ]),
+          faqPageNode(
+            perthFaq.map((item) => ({
+              question: item.question,
+              answer: faqAnswerText(item.answer),
+            })),
+          ),
         ]}
       />
       <PageHero
@@ -157,48 +164,7 @@ export default function PerthHubPage() {
 
       <Section className="pt-0">
         <SectionHeading eyebrow="FAQ" title="Perth production, plain answers" />
-        <FaqList
-          items={[
-            {
-              question: "Where are TraffLabels labels made?",
-              answer: (
-                <p>
-                  WA production under the Stik Stickers group. Jobs are nested
-                  and laser-engraved in Perth, then posted across WA and
-                  Australia.
-                </p>
-              ),
-            },
-            {
-              question: "How fast can I get labels?",
-              answer: (
-                <p>
-                  Same-week turnaround is the target for standard legends once
-                  the job is in the nest. Complex schedules or unusual colours
-                  can take longer.
-                </p>
-              ),
-            },
-            {
-              question: "Is there a minimum order?",
-              answer: (
-                <p>
-                  No minimum order. Order a single isolator legend or a full
-                  switchboard schedule.
-                </p>
-              ),
-            },
-            {
-              question: "Are these vinyl stickers?",
-              answer: (
-                <p>
-                  No. Traffolyte is engraving laminate — two-colour sheet the
-                  laser cuts through. It is not printed vinyl.
-                </p>
-              ),
-            },
-          ]}
-        />
+        <FaqList items={perthFaq} />
       </Section>
 
       <CtaBand

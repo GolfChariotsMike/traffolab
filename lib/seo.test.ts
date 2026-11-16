@@ -6,9 +6,13 @@ import {
   META_DESCRIPTION_LIMIT,
   suburbMetaDescriptions,
 } from "./seo-copy";
-import { sitemapPaths } from "./site";
+import { faqAnswerText } from "./faq";
+import { perthFaq, perthFaqAnswers } from "./perth-faq";
+import { sitemapPaths, withCanonical } from "./site";
 import {
-  organizationNode,
+  faqPageNode,
+  localBusinessNode,
+  organizationDescription,
   serializeJsonLd,
   serviceNode,
 } from "./structured-data";
@@ -32,6 +36,8 @@ const visibleSources = [
   "lib/seo-copy.ts",
   "lib/llms-txt.ts",
   "lib/structured-data.ts",
+  "lib/perth-faq.ts",
+  "lib/faq.ts",
 ];
 
 for (const file of visibleSources) {
@@ -53,18 +59,86 @@ for (const file of visibleSources) {
 }
 
 {
-  const organization = organizationNode();
-  assert.equal(organization["@type"], "Organization");
-  assert.equal(organization.name, "TraffLabels");
-  const serialized = serializeJsonLd(organization);
+  const business = localBusinessNode();
+  assert.equal(business["@type"], "LocalBusiness");
+  assert.equal(business.name, "TraffLabels");
+  assert.equal(business.url, "https://www.trafflabels.com.au/");
+  assert.equal(business.email, "sales@trafflabels.com.au");
+  assert.equal(
+    business.logo,
+    "https://www.trafflabels.com.au/brand/trafflabels-logo.png",
+  );
+  assert.equal(business.image, business.logo);
+  assert.equal(business.description, organizationDescription);
+  const serialized = serializeJsonLd(business);
   assert.doesNotMatch(
     serialized,
-    /telephone|streetAddress|postalCode|openingHours|aggregateRating|reviewCount|ratingValue/i,
+    /"telephone"|"streetAddress"|"postalCode"|"openingHours"|"sameAs"|"geo"|"aggregateRating"|"reviewCount"|"ratingValue"/,
   );
   assert.match(serialized, /Perth/);
   assert.match(serialized, /Western Australia/);
   assert.match(serialized, /manufactured in Australia/);
-  assert.doesNotMatch(serialized, /LocalBusiness/);
+  assert.match(serialized, /sales@trafflabels\.com\.au/);
+}
+
+{
+  const peopleAlsoAsk = [
+    "What is a traffolyte label?",
+    "How much do traffolyte labels cost?",
+    "What is the thickness of traffolyte labels?",
+    "Can you laser engrave a traffolyte?",
+    "What is the main difference between acrylic and traffolyte?",
+    "What is traffolyte made of?",
+    "Is traffolyte a brand?",
+  ];
+  const questions = perthFaq.map((item) => item.question);
+  for (const question of peopleAlsoAsk) {
+    assert.equal(questions.filter((item) => item === question).length, 1, question);
+  }
+  const answers = perthFaqAnswers();
+  const page = faqPageNode(answers);
+  const main = page.mainEntity as {
+    name: string;
+    acceptedAnswer: { text: string };
+  }[];
+  assert.equal(main.length, perthFaq.length);
+  for (const [index, item] of perthFaq.entries()) {
+    assert.equal(main[index]?.name, item.question);
+    assert.equal(main[index]?.acceptedAnswer.text, faqAnswerText(item.answer));
+  }
+  const cost = faqAnswerText(
+    perthFaq.find((item) => item.question === "How much do traffolyte labels cost?")!
+      .answer,
+  );
+  assert.match(cost, /\$0\.0075\/mm²/);
+  assert.match(cost, /\$1\.50/);
+  assert.match(cost, /\$0\.005\/mm²/);
+  assert.match(cost, /\$0\.0035\/mm²/);
+  assert.match(cost, /Standard \$10\.00 or Express \$15\.00/);
+  assert.match(cost, /order page/);
+  const thickness = faqAnswerText(
+    perthFaq.find(
+      (item) => item.question === "What is the thickness of traffolyte labels?",
+    )!.answer,
+  );
+  assert.doesNotMatch(thickness, /\d+(?:\.\d+)?\s*mm/);
+  assert.match(thickness, /contact us/);
+  assert.match(thickness, /does not publish a sheet thickness/);
+}
+
+{
+  const meta = withCanonical("/contact/", {
+    title: "Contact TraffLabels | Traffolyte Labels Perth",
+    description: "Send TraffLabels a job by email.",
+  });
+  const canonical = meta.alternates?.canonical;
+  const graph = meta.openGraph;
+  assert.equal(typeof canonical, "string");
+  assert.ok(graph && !Array.isArray(graph));
+  if (graph && !Array.isArray(graph)) {
+    assert.equal(graph.url, canonical);
+    assert.match(String(graph.url), /\/contact\/$/);
+  }
 }
 
 {

@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
+
 export const siteName = "TraffLabels";
 export const brandName = "TraffLabels";
 export const productName = "TraffLabels";
+
+/** The only contact address approved for the public site. */
+export const publicContactEmail = "sales@trafflabels.com.au";
+
+export const logoPath = "/brand/trafflabels-logo.png";
 
 export const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??
@@ -70,4 +77,33 @@ export const sitemapPaths = [
 
 export function absoluteUrl(path: string) {
   return new URL(path, `${siteUrl}/`).toString();
+}
+
+/**
+ * Canonical link plus og:url for one page.
+ * openGraph is replaced (not deep-merged) by the page, so type, locale,
+ * and siteName are repeated here.
+ */
+export function withCanonical(path: string, metadata: Metadata): Metadata {
+  const url = absoluteUrl(path);
+  const current = metadata.openGraph;
+  const openGraph = current && !Array.isArray(current) ? current : undefined;
+  const rawTitle = openGraph?.title ?? metadata.title;
+  const rawDescription = openGraph?.description ?? metadata.description;
+  const title = typeof rawTitle === "string" ? rawTitle : undefined;
+  const description =
+    typeof rawDescription === "string" ? rawDescription : undefined;
+
+  return {
+    ...metadata,
+    alternates: { ...metadata.alternates, canonical: url },
+    openGraph: {
+      type: "website",
+      locale: "en_AU",
+      siteName,
+      ...(title !== undefined ? { title } : {}),
+      ...(description !== undefined ? { description } : {}),
+      url,
+    },
+  };
 }

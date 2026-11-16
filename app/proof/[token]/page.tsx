@@ -15,16 +15,23 @@ import {
   proofPriceSummary,
   type ProofRecord,
 } from "@/lib/proofs";
-import { productName } from "@/lib/site";
+import { productName, withCanonical } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export const metadata: Metadata = {
-  title: `Proof | ${productName}`,
-  description: "Check and approve a TraffLabels engraving proof.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  const { token } = await params;
+  return withCanonical(`/proof/${token}/`, {
+    title: `Proof | ${productName}`,
+    description: "Check and approve a TraffLabels engraving proof.",
+    robots: { index: false, follow: false },
+  });
+}
 
 function PlateFigure({ plate }: { plate: StoredPlate }) {
   const svg = proofPlateSvg(plate);
