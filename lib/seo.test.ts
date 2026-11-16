@@ -124,6 +124,18 @@ for (const file of visibleSources) {
   assert.doesNotMatch(thickness, /\d+(?:\.\d+)?\s*mm/);
   assert.match(thickness, /contact us/);
   assert.match(thickness, /does not publish a sheet thickness/);
+  const acrylic = faqAnswerText(
+    perthFaq.find(
+      (item) =>
+        item.question ===
+        "What is the main difference between acrylic and traffolyte?",
+    )!.answer,
+  );
+  assert.match(
+    acrylic,
+    /TraffLabels engraves Traffolyte plates in WA; they are engraved laminate, not printed stickers\.$/,
+  );
+  assert.doesNotMatch(acrylic, /makes the layered laminate/);
 }
 
 {

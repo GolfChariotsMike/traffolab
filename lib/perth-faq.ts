@@ -61,7 +61,7 @@ export const perthFaq = [
   {
     question: "What is the main difference between acrylic and traffolyte?",
     answer:
-      "Acrylic is a single plastic, clear or a solid colour, so engraving cuts into that one material. Traffolyte is layered engraving laminate: a face colour bonded over a contrasting core, and engraving reveals the core. TraffLabels makes the layered laminate in WA, not a printed sticker.",
+      "Acrylic is a single plastic, clear or a solid colour, so engraving cuts into that one material. Traffolyte is layered engraving laminate: a face colour bonded over a contrasting core, and engraving reveals the core. TraffLabels engraves Traffolyte plates in WA; they are engraved laminate, not printed stickers.",
   },
   {
     question: "What is traffolyte made of?",
