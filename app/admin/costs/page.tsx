@@ -6,13 +6,14 @@ import { resendConfigured } from "@/lib/admin-mail";
 import { getCostStore } from "@/lib/cost-store";
 import { CostSchemaError, monthSummary, perthMonth, type Cost, type MonthSummary } from "@/lib/costs";
 import { getOrderStore } from "@/lib/order-store";
+import { withCanonical } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical("/admin/costs/", {
   title: "Costs | TraffLabels",
   robots: { index: false, follow: false },
-};
+});
 
 export default async function AdminCostsPage() {
   const jar = await cookies();

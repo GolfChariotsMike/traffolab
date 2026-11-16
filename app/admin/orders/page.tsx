@@ -4,6 +4,7 @@ import { OrdersBoard } from "@/components/admin/orders-board";
 import { ORDERS_COOKIE, dashboardConfigured, readOrdersSession } from "@/lib/admin-auth";
 import { resendConfigured } from "@/lib/admin-mail";
 import { getOrderStore } from "@/lib/order-store";
+import { withCanonical } from "@/lib/site";
 import {
   EMPTY_PROOF_SUMMARY,
   proofSummary,
@@ -14,10 +15,10 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical("/admin/orders/", {
   title: "Orders | TraffLabels",
   robots: { index: false, follow: false },
-};
+});
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

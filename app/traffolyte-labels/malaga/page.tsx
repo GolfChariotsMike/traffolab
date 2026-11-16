@@ -41,22 +41,13 @@ const malaga = {
   faq: [
     {
       question: "Do you deliver Traffolyte labels to Malaga?",
-      answer: (
-        <p>
-          Yes. Malaga is on the regular Perth metro run — pickup can be
-          arranged, or we post into the suburb. Same-week target for standard
-          legends once the job is nested.
-        </p>
-      ),
+      answer:
+        "Yes. Malaga is on the regular Perth metro run — pickup can be arranged, or we post into the suburb. Same-week target for standard legends once the job is nested.",
     },
     {
       question: "Why not order from the East Coast?",
-      answer: (
-        <p>
-          Interstate engraving plus freight often misses a live board date. WA
-          production under the Stik Stickers group keeps the nest in Perth.
-        </p>
-      ),
+      answer:
+        "Interstate engraving plus freight often misses a live board date. WA production under the Stik Stickers group keeps the nest in Perth.",
     },
   ],
 };

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -5,16 +6,22 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
-  EmptyTitle,
 } from "@/components/ui/empty";
-import { routes } from "@/lib/site";
+import { routes, siteName } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: `Page not found | ${siteName}`,
+  robots: { index: false, follow: false },
+};
 
 export default function NotFound() {
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-6xl items-center px-4">
       <Empty className="border">
         <EmptyHeader>
-          <EmptyTitle>Page not found</EmptyTitle>
+          <h1 className="font-heading text-sm font-medium tracking-tight">
+            Page not found
+          </h1>
           <EmptyDescription>
             That URL is not one of the TraffLabels pages. Head back to Perth
             Traffolyte labels or the homepage.

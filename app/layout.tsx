@@ -36,6 +36,16 @@ export const metadata: Metadata = {
     locale: "en_AU",
     siteName,
   },
+  icons: {
+    icon: [{ url: "/icon.png", sizes: "64x64", type: "image/png" }],
+    apple: [
+      {
+        url: "/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -4,10 +4,10 @@ import { PageHero } from "@/components/page-hero";
 import { Section } from "@/components/section";
 import { JsonLd } from "@/components/json-ld";
 import { contactTitle } from "@/lib/seo-copy";
-import { absoluteUrl, productName, routes } from "@/lib/site";
+import { productName, publicContactEmail, routes, withCanonical } from "@/lib/site";
 import {
   breadcrumbNode,
-  organizationNode,
+  localBusinessNode,
   webPageNode,
   websiteNode,
 } from "@/lib/structured-data";
@@ -15,18 +15,17 @@ import {
 const description =
   "Send TraffLabels a job by email. Attach a CSV, spreadsheet, PDF, or photo, or type the legend.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical(routes.contact, {
   title: contactTitle,
   description,
-  alternates: { canonical: absoluteUrl(routes.contact) },
-};
+});
 
 export default function ContactPage() {
   return (
     <>
       <JsonLd
         data={[
-          organizationNode(),
+          localBusinessNode(),
           websiteNode(),
           webPageNode({
             type: "ContactPage",
@@ -47,7 +46,17 @@ export default function ContactPage() {
         crumbs={[{ label: "Contact" }]}
       />
       <Section>
-        <ContactForm />
+        <div className="flex max-w-xl flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            <a
+              href={`mailto:${publicContactEmail}`}
+              className="underline underline-offset-3 hover:text-foreground"
+            >
+              {publicContactEmail}
+            </a>
+          </p>
+          <ContactForm />
+        </div>
       </Section>
     </>
   );

@@ -2,18 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ClearPaidDraft } from "@/components/order/clear-paid-draft";
 import { Button } from "@/components/ui/button";
-import { absoluteUrl, productName, routes } from "@/lib/site";
+import { productName, routes, withCanonical } from "@/lib/site";
 import { shouldClearOrderDraft } from "@/lib/checkout-return";
 import { persistPaidCheckoutSession } from "@/lib/fulfill-order";
 import { shouldFulfillCheckout } from "@/lib/orders";
 import { retrieveCheckoutSession } from "@/lib/stripe";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical("/order/success/", {
   title: `Payment received | ${productName}`,
   description: "Thanks for your TraffLabels order.",
-  alternates: { canonical: absoluteUrl("/order/success/") },
   robots: { index: false, follow: false },
-};
+});
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { CtaBand } from "@/components/cta-band";
-import { FaqList, type FaqItem } from "@/components/faq-list";
+import { FaqList } from "@/components/faq-list";
 import { PageHero } from "@/components/page-hero";
 import { RelatedLinks, type RelatedLink } from "@/components/related-links";
 import { Section, SectionHeading } from "@/components/section";
 import { JsonLd } from "@/components/json-ld";
-import { absoluteUrl, routes } from "@/lib/site";
-import { breadcrumbNode, serviceNode } from "@/lib/structured-data";
+import { faqAnswerText, type FaqItem } from "@/lib/faq";
+import { routes, withCanonical } from "@/lib/site";
+import { breadcrumbNode, faqPageNode, serviceNode } from "@/lib/structured-data";
 
 export type SuburbContent = {
   name: string;
@@ -21,11 +22,10 @@ export type SuburbContent = {
 };
 
 export function suburbMetadata(suburb: SuburbContent): Metadata {
-  return {
+  return withCanonical(suburb.path, {
     title: `Traffolyte Labels ${suburb.name} | Order Online | TraffLabels`,
     description: suburb.description,
-    alternates: { canonical: absoluteUrl(suburb.path) },
-  };
+  });
 }
 
 export function SuburbPage({ suburb }: { suburb: SuburbContent }) {
@@ -44,6 +44,12 @@ export function SuburbPage({ suburb }: { suburb: SuburbContent }) {
             { name: "Perth labels", path: routes.hub },
             { name: suburb.name, path: suburb.path },
           ]),
+          faqPageNode(
+            suburb.faq.map((item) => ({
+              question: item.question,
+              answer: faqAnswerText(item.answer),
+            })),
+          ),
         ]}
       />
       <PageHero

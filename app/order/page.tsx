@@ -4,15 +4,14 @@ import { JsonLd } from "@/components/json-ld";
 import { OrderEntry } from "@/components/order/order-entry";
 import { ORDER_COPY, OrderIntro } from "@/components/order/order-intro";
 import { orderMode, type OrderMode } from "@/lib/order-mode";
-import { absoluteUrl, productName, routes } from "@/lib/site";
+import { productName, routes, withCanonical } from "@/lib/site";
 import { breadcrumbNode, webPageNode, websiteNode } from "@/lib/structured-data";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical(routes.order, {
   title: `Order Traffolyte labels | ${productName}`,
   description:
     "Design a Traffolyte plate in the browser, or upload a CSV of many legends. Export SVG for LightBurn or add the job to a TraffLabels order draft.",
-  alternates: { canonical: absoluteUrl(routes.order) },
-};
+});
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
