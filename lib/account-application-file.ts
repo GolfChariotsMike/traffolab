@@ -9,6 +9,7 @@ import {
   type AccountApplicationStatus,
   type NewAccountApplication,
 } from "@/lib/account-application";
+import { matchApprovedTradeAccount } from "@/lib/invoice";
 
 export type AccountApplicationPatch = {
   status?: AccountApplicationStatus;
@@ -21,6 +22,8 @@ export type AccountApplicationStore = {
   insert(application: NewAccountApplication): Promise<AccountApplication>;
   list(): Promise<AccountApplication[]>;
   update(id: string, patch: AccountApplicationPatch): Promise<AccountApplication | null>;
+  /** Approved application for this order or customer email, if there is one. */
+  findApprovedForInvoice(input: { email: string; orderId: string }): Promise<AccountApplication | null>;
 };
 
 type FileDb = { applications: AccountApplication[] };
@@ -130,6 +133,11 @@ export function createFileAccountApplicationStore(filePath: string): AccountAppl
         await write(db);
         return clone(current);
       });
+    },
+    async findApprovedForInvoice(input) {
+      const db = await read();
+      const match = matchApprovedTradeAccount(db.applications, input);
+      return match ? clone(match) : null;
     },
   };
 }

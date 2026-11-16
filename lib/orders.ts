@@ -107,6 +107,16 @@ export type SavedOrder = {
   uniformTextSize?: boolean;
   /** When set, every plate in the order uses this em size, whatever its dimensions. */
   uniformTextMm?: number;
+  /** Stripe tax invoice created when a manual proof is approved. */
+  stripeInvoiceId?: string | null;
+  stripeInvoiceNumber?: string | null;
+  stripeInvoiceUrl?: string | null;
+  stripeInvoicePdfUrl?: string | null;
+  stripeInvoiceStatus?: string | null;
+  stripeInvoiceError?: string | null;
+  stripeInvoiceDueAt?: string | null;
+  /** Extra invoice recipients. Stripe emails the customer; these get a copy. */
+  invoiceCcEmails?: string[];
 };
 
 export type NewPaidOrder = Omit<SavedOrder, "orderNumber">;
@@ -133,6 +143,8 @@ export type OrderPatch = {
   uniformTextSize?: boolean;
   /** Fixed em size for every plate. Null clears it. Omit to leave the current size. */
   uniformTextMm?: number | null;
+  /** Replace the invoice copy list. An empty list clears it. */
+  invoiceCcEmails?: string[];
 };
 
 export class OrderUpdateError extends Error {
@@ -173,6 +185,36 @@ export function parsePlateLocations(
 
 const NOTE_MAX = 4000;
 const TRACKING_MAX = 500;
+const INVOICE_CC_MAX = 10;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Comma, semicolon, or newline separated invoice copy addresses. */
+export function parseInvoiceCc(
+  value: unknown
+): { ok: true; emails: string[] } | { ok: false; error: string } {
+  if (value == null) return { ok: true, emails: [] };
+  if (typeof value !== "string" && !Array.isArray(value)) {
+    return { ok: false, error: "Invoice copy emails must be text." };
+  }
+  const raw = Array.isArray(value) ? value.filter((item) => typeof item === "string").join(",") : value;
+  if (raw.length > 2000) return { ok: false, error: "Invoice copy emails are too long." };
+  const seen = new Set<string>();
+  const emails: string[] = [];
+  for (const part of raw.split(/[,;\n]/)) {
+    const email = part.trim().toLowerCase();
+    if (!email) continue;
+    if (!EMAIL_RE.test(email) || email.length > 200) {
+      return { ok: false, error: `“${part.trim().slice(0, 80)}” is not an email address.` };
+    }
+    if (seen.has(email)) continue;
+    seen.add(email);
+    emails.push(email);
+  }
+  if (emails.length > INVOICE_CC_MAX) {
+    return { ok: false, error: "Enter at most 10 invoice copy emails." };
+  }
+  return { ok: true, emails };
+}
 
 export function paymentSourceLabel(source: PaymentSource | undefined) {
   return source === "manual" ? "Manual" : "Stripe";
@@ -376,13 +418,20 @@ export function parseOrderPatch(
     }
   }
 
+  if ("invoiceCc" in raw) {
+    const parsed = parseInvoiceCc(raw.invoiceCc);
+    if (!parsed.ok) return parsed;
+    patch.invoiceCcEmails = parsed.emails;
+  }
+
   if (
     patch.status === undefined &&
     patch.note === undefined &&
     patch.trackingLink === undefined &&
     patch.plateLocations === undefined &&
     patch.uniformTextSize === undefined &&
-    patch.uniformTextMm === undefined
+    patch.uniformTextMm === undefined &&
+    patch.invoiceCcEmails === undefined
   ) {
     return { ok: false, error: "Nothing to update." };
   }
@@ -430,6 +479,8 @@ export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new 
     uniformTextSize,
     uniformTextMm: fixedMm,
     plates,
+    invoiceCcEmails:
+      patch.invoiceCcEmails !== undefined ? patch.invoiceCcEmails : order.invoiceCcEmails,
     updatedAt: now.toISOString(),
   };
 }

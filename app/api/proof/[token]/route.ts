@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { magicLinkOrigin } from "@/lib/admin-auth";
+import { invoiceApprovedOrder } from "@/lib/issue-invoice";
 import { getOrderStore } from "@/lib/order-store";
 import { sendProofNotification } from "@/lib/proof-mail";
 import {
@@ -93,6 +94,16 @@ export async function POST(
         await sendProofNotification({ proof: result.proof, proofUrl });
       } catch (error) {
         console.error("[proof] notification failed", error);
+      }
+      if (result.proof.status === "approved") {
+        try {
+          const invoiced = await invoiceApprovedOrder(result.proof.orderNumber);
+          if (!invoiced.ok) {
+            console.error("[invoice] approval invoice failed", invoiced.error);
+          }
+        } catch (error) {
+          console.error("[invoice] approval invoice failed", error);
+        }
       }
     }
     return NextResponse.json({

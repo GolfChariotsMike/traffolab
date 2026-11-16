@@ -4,14 +4,18 @@ import {
   OrderStoreUnavailableError,
   persistPaidCheckoutSession,
 } from "@/lib/fulfill-order";
+import { applyInvoiceWebhook } from "@/lib/issue-invoice";
+import { isInvoiceWebhookEvent } from "@/lib/invoice";
 import { shouldFulfillCheckout } from "@/lib/orders";
 import { getStripe } from "@/lib/stripe";
+import type Stripe from "stripe";
 
 export const runtime = "nodejs";
 
 /**
- * Stripe webhook for paid TraffLabels checkouts.
- * Verifies STRIPE_WEBHOOK_SECRET, then stores the order as NEW.
+ * Stripe webhook. Checkout events store a paid order.
+ * Invoice events update the tax invoice on the order:
+ * invoice.paid, invoice.payment_failed, invoice.voided, invoice.marked_uncollectible.
  */
 export async function POST(request: Request) {
   const stripe = getStripe();
@@ -47,6 +51,25 @@ export async function POST(request: Request) {
       { ok: false, error: "Invalid webhook signature." },
       { status: 400 }
     );
+  }
+
+  if (isInvoiceWebhookEvent(event.type)) {
+    try {
+      const result = await applyInvoiceWebhook(event.type, event.data.object as Stripe.Invoice);
+      if ("retry" in result && result.retry) {
+        return NextResponse.json(
+          { ok: false, error: "Invoice order is not stored yet." },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ received: true, invoice: true });
+    } catch (error) {
+      console.error("[stripe-webhook] invoice update failed", error);
+      return NextResponse.json(
+        { ok: false, error: "Could not update the invoice." },
+        { status: 500 }
+      );
+    }
   }
 
   if (
