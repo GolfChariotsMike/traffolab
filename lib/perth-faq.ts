@@ -1,11 +1,5 @@
 import { faqAnswerText, type FaqItem } from "@/lib/faq";
-import {
-  PLATE_RATE_TABLE,
-  SHIPPING_METHODS,
-  formatAud,
-  formatPerMm2,
-  priceForPlate,
-} from "@/lib/pricing";
+import { PLATE_RATE_TABLE, formatAud } from "@/lib/pricing";
 import { routes } from "@/lib/site";
 
 /**
@@ -83,17 +77,12 @@ export function perthFaqAnswers() {
 }
 
 function costFaqAnswer(): FaqItem["answer"] {
-  const [small, medium, large] = PLATE_RATE_TABLE;
-  const minimum = formatAud(Math.round((small.minimumAud ?? 0) * 100));
-  const sample = formatAud(priceForPlate(20, 10, 1).unitCents);
-  const shipping = SHIPPING_METHODS.map(
-    (method) => `${method.label} ${formatAud(method.aud * 100)}`,
-  ).join(" or ");
-  const largeLabel = large.label.charAt(0).toLowerCase() + large.label.slice(1);
-
+  const minimum = formatAud(
+    Math.round((PLATE_RATE_TABLE[0].minimumAud ?? 0) * 100),
+  );
   return [
-    `Plate price is width × height. ${small.label} is ${formatPerMm2(small.ratePerMm2Aud)}, with a minimum of ${minimum} per plate — a 20 × 10 mm plate is ${sample}. ${medium.label} is ${formatPerMm2(medium.ratePerMm2Aud)}, and ${largeLabel} is ${formatPerMm2(large.ratePerMm2Aud)}. There is no minimum order — price a plate on the `,
+    `It depends on the size of the label, but prices start from ${minimum} per plate. There's no minimum order, and you can price your plate on the `,
     { text: "order page", href: routes.order },
-    `, then Australia-wide shipping is ${shipping}.`,
+    ".",
   ];
 }

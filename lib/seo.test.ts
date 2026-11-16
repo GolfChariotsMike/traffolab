@@ -106,16 +106,18 @@ for (const file of visibleSources) {
     assert.equal(main[index]?.name, item.question);
     assert.equal(main[index]?.acceptedAnswer.text, faqAnswerText(item.answer));
   }
-  const cost = faqAnswerText(
-    perthFaq.find((item) => item.question === "How much do traffolyte labels cost?")!
-      .answer,
+  const costItem = perthFaq.find(
+    (item) => item.question === "How much do traffolyte labels cost?",
+  )!;
+  const cost = faqAnswerText(costItem.answer);
+  assert.equal(
+    cost,
+    "It depends on the size of the label, but prices start from $1.50 per plate. There's no minimum order, and you can price your plate on the order page.",
   );
-  assert.match(cost, /\$0\.0075\/mm²/);
-  assert.match(cost, /\$1\.50/);
-  assert.match(cost, /\$0\.005\/mm²/);
-  assert.match(cost, /\$0\.0035\/mm²/);
-  assert.match(cost, /Standard \$10\.00 or Express \$15\.00/);
-  assert.match(cost, /order page/);
+  assert.doesNotMatch(cost, /mm²|Standard|Express/);
+  assert.ok(Array.isArray(costItem.answer));
+  const orderLink = costItem.answer.find((part) => typeof part !== "string");
+  assert.equal(orderLink && orderLink.href, "/order/");
   const thickness = faqAnswerText(
     perthFaq.find(
       (item) => item.question === "What is the thickness of traffolyte labels?",
