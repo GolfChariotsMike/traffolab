@@ -31,9 +31,11 @@ import {
   EMPTY_PROOF_SUMMARY,
   cutFileDownloadHold,
   proofPath,
+  proofPriceSummary,
   proofStatusText,
   type ProofSummary,
 } from "@/lib/proofs";
+import { invoiceBoardState, invoiceStatusLabel } from "@/lib/invoice";
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
 import { cleanUniformTextMm } from "@/lib/orders";
 import { proofPlateSvg } from "@/lib/proof-plate";
@@ -117,6 +119,150 @@ function orderPlateItem(
   );
 }
 
+function InvoiceCell({ order }: { order: SavedOrder }) {
+  if (order.paymentSource !== "manual" && !order.stripeInvoiceId) {
+    return <span className="text-white/45">Paid online</span>;
+  }
+  const state = invoiceBoardState(order);
+  const label = invoiceStatusLabel(state);
+  const tone =
+    state === "paid"
+      ? "text-[#3ddc97]"
+      : state === "overdue" || state === "payment_failed" || state === "error"
+        ? "text-red-300"
+        : "text-white/80";
+  if (order.stripeInvoiceUrl && state !== "none" && state !== "error") {
+    return (
+      <a
+        href={order.stripeInvoiceUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(tone, "underline-offset-2 hover:underline")}
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span className={tone}>{label}</span>;
+}
+
+function InvoicePanel({
+  order,
+  proof,
+  invoiceCc,
+  invoicing,
+  actionError,
+  actionMessage,
+  onCcChange,
+  onSend,
+}: {
+  order: SavedOrder;
+  proof: ProofSummary;
+  invoiceCc: string;
+  invoicing: boolean;
+  actionError: string | null;
+  actionMessage: string | null;
+  onCcChange: (value: string) => void;
+  onSend: () => void;
+}) {
+  const manual = order.paymentSource === "manual";
+  const state = invoiceBoardState(order);
+  const approved = proof.state === "approved";
+  const price = approved ? proofPriceSummary(order.plates, order) : null;
+  const canSend = manual && approved && !order.stripeInvoiceId;
+  const retry = canSend && Boolean(order.stripeInvoiceError?.trim());
+  const storedError = order.stripeInvoiceError?.trim() || "";
+  return (
+    <section className="mt-5 border border-white/10 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">Tax invoice</h3>
+        <span className="text-xs text-white/55">{invoiceStatusLabel(state)}</span>
+      </div>
+      {manual ? (
+        <label className="mt-3 flex flex-col gap-1.5 text-sm">
+          Invoice copy emails
+          <textarea
+            value={invoiceCc}
+            onChange={(event) => onCcChange(event.target.value)}
+            rows={2}
+            placeholder="accounts@example.com"
+            className="rounded-lg border border-white/15 bg-black px-3 py-2"
+          />
+        </label>
+      ) : null}
+      <p className="mt-2 text-xs text-white/45">
+        {manual
+          ? "Stripe emails the customer. These addresses, such as accounts payable, get a short copy with the invoice link."
+          : "Paid online at checkout. A tax invoice is not sent."}
+      </p>
+      {price ? (
+        <p className="mt-2 text-sm">
+          {formatAud(price.totalIncGstCents)} inc GST ({formatAud(price.gstCents)} GST)
+        </p>
+      ) : null}
+      {order.stripeInvoiceNumber ? (
+        <p className="mt-2 text-sm text-white/80">{order.stripeInvoiceNumber}</p>
+      ) : null}
+      {order.stripeInvoiceDueAt && state !== "paid" ? (
+        <p className="mt-1 text-xs text-white/55">Due {formatOrderDate(order.stripeInvoiceDueAt)}</p>
+      ) : null}
+      <div className="mt-2 flex flex-col gap-1 text-sm">
+        {order.stripeInvoiceUrl ? (
+          <a
+            className="text-[#fee100] underline-offset-2 hover:underline"
+            href={order.stripeInvoiceUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Hosted invoice
+          </a>
+        ) : null}
+        {order.stripeInvoicePdfUrl ? (
+          <a
+            className="text-[#fee100] underline-offset-2 hover:underline"
+            href={order.stripeInvoicePdfUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Invoice PDF
+          </a>
+        ) : null}
+      </div>
+      {manual && !approved && !order.stripeInvoiceId ? (
+        <p className="mt-2 text-sm text-white/70">
+          A tax invoice is sent when the customer approves the proof. Approvals from before this
+          was automatic stay unbilled until you send one.
+        </p>
+      ) : null}
+      {storedError && storedError !== actionError ? (
+        <p role="alert" className="mt-2 text-sm text-red-300">
+          {storedError}
+        </p>
+      ) : null}
+      {actionError ? (
+        <p role="alert" className="mt-2 text-sm text-red-300">
+          {actionError}
+        </p>
+      ) : null}
+      {actionMessage ? (
+        <p role="status" className="mt-2 text-sm text-[#3ddc97]">
+          {actionMessage}
+        </p>
+      ) : null}
+      {canSend ? (
+        <Button
+          type="button"
+          className="mt-3 bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
+          disabled={invoicing}
+          onClick={onSend}
+        >
+          {invoicing ? "Sending…" : retry ? "Retry invoice" : "Send invoice"}
+        </Button>
+      ) : null}
+    </section>
+  );
+}
+
 function proofColumnLabel(summary: ProofSummary | undefined) {
   switch (summary?.state) {
     case "awaiting":
@@ -168,6 +314,10 @@ export function OrdersBoard({
   const [uniformText, setUniformText] = useState(false);
   const [uniformTextMm, setUniformTextMm] = useState("");
   const [platesOpen, setPlatesOpen] = useState(false);
+  const [invoiceCc, setInvoiceCc] = useState("");
+  const [invoicing, setInvoicing] = useState(false);
+  const [invoiceActionError, setInvoiceActionError] = useState<string | null>(null);
+  const [invoiceActionMessage, setInvoiceActionMessage] = useState<string | null>(null);
 
   const visible = useMemo(
     () => (filter === "ALL" ? orders : orders.filter((order) => order.status === filter)),
@@ -191,6 +341,10 @@ export function OrdersBoard({
     setProofError(null);
     setProofMessage(null);
     setCopiedProof(false);
+    setInvoiceCc((order.invoiceCcEmails ?? []).join(", "));
+    setInvoicing(false);
+    setInvoiceActionError(null);
+    setInvoiceActionMessage(null);
     setOrigin(window.location.origin);
   }
 
@@ -235,6 +389,7 @@ export function OrdersBoard({
           plateLocations: locations,
           uniformTextSize: uniformText && fixedMm == null,
           uniformTextMm: uniformText ? fixedMm : null,
+          invoiceCc,
         }),
       });
       const payload = (await response.json().catch(() => null)) as {
@@ -257,6 +412,7 @@ export function OrdersBoard({
       setLocations(savedOrder.plates.map((plate) => plate.location ?? ""));
       setUniformText(savedOrder.uniformTextSize === true || savedOrder.uniformTextMm != null);
       setUniformTextMm(savedOrder.uniformTextMm != null ? String(savedOrder.uniformTextMm) : "");
+      setInvoiceCc((savedOrder.invoiceCcEmails ?? []).join(", "));
       if (payload.proof) {
         setProofs((current) => ({
           ...current,
@@ -313,6 +469,53 @@ export function OrdersBoard({
     } catch {
       setProofError("Could not create the proof.");
       setCreatingProof(false);
+    }
+  }
+
+  async function sendInvoice() {
+    if (!selected) return;
+    setInvoicing(true);
+    setInvoiceActionError(null);
+    setInvoiceActionMessage(null);
+    try {
+      const response = await fetch(`/api/admin/orders/${selected.orderNumber}/invoice/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ invoiceCc }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        order?: SavedOrder;
+        proof?: ProofSummary | null;
+      } | null;
+      if (payload?.order) {
+        const savedOrder = payload.order;
+        setOrders((current) =>
+          current.map((order) =>
+            order.orderNumber === savedOrder.orderNumber ? savedOrder : order
+          )
+        );
+        setInvoiceCc((savedOrder.invoiceCcEmails ?? []).join(", "));
+        if (payload.proof) {
+          setProofs((current) => ({
+            ...current,
+            [String(savedOrder.orderNumber)]: payload.proof!,
+          }));
+        }
+      }
+      if (!response.ok || !payload?.ok) {
+        setInvoiceActionError(payload?.error || "Could not send the invoice.");
+        setInvoicing(false);
+        return;
+      }
+      setInvoiceActionMessage(payload.message || "Tax invoice sent.");
+      setInvoicing(false);
+      router.refresh();
+    } catch {
+      setInvoiceActionError("Could not send the invoice.");
+      setInvoicing(false);
     }
   }
 
@@ -426,6 +629,7 @@ export function OrdersBoard({
                   <th className="px-3 py-3 font-medium">Status</th>
                   <th className="px-3 py-3 font-medium">Proof</th>
                   <th className="px-3 py-3 font-medium">Payment</th>
+                  <th className="px-3 py-3 font-medium">Invoice</th>
                   <th className="px-3 py-3 font-medium">Customer</th>
                   <th className="px-3 py-3 font-medium">Items</th>
                   <th className="px-3 py-3 font-medium">Total</th>
@@ -437,7 +641,7 @@ export function OrdersBoard({
               <tbody>
                 {visible.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-10 text-sm text-white/55">
+                    <td colSpan={11} className="px-4 py-10 text-sm text-white/55">
                       {orders.length === 0
                         ? "No orders yet. A Stripe payment or an order you add appears here as NEW."
                         : "No orders in this status."}
@@ -478,6 +682,9 @@ export function OrdersBoard({
                           >
                             {paymentSourceLabel(order.paymentSource)}
                           </span>
+                        </td>
+                        <td className="px-3 py-3 text-xs" onClick={(event) => event.stopPropagation()}>
+                          <InvoiceCell order={order} />
                         </td>
                         <td className="px-3 py-3">
                           <span className="block text-paper">
@@ -700,6 +907,20 @@ export function OrdersBoard({
                     : "Create a new proof link"}
               </Button>
             </section>
+
+            <InvoicePanel
+              order={selected}
+              proof={selectedProof}
+              invoiceCc={invoiceCc}
+              invoicing={invoicing}
+              actionError={invoiceActionError}
+              actionMessage={invoiceActionMessage}
+              onCcChange={(value) => {
+                setInvoiceCc(value);
+                setSaved(false);
+              }}
+              onSend={() => void sendInvoice()}
+            />
 
             <section className="mt-5">
               <div className="flex flex-wrap items-center justify-between gap-2">

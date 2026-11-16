@@ -1,6 +1,7 @@
 import "server-only";
 import postgres, { type Sql } from "postgres";
-import { applyOrderPatch, OrderUpdateError, type CheckoutDraft, type NewPaidOrder, type OrderPatch, type SavedOrder, type ShippingAddress, isOrderStatus } from "@/lib/orders";
+import { InvoiceSchemaError, mergeInvoicePatch, type StripeInvoicePatch } from "@/lib/invoice";
+import { applyOrderPatch, OrderUpdateError, parseInvoiceCc, type CheckoutDraft, type NewPaidOrder, type OrderPatch, type SavedOrder, type ShippingAddress, isOrderStatus } from "@/lib/orders";
 import {
   approvalStatement,
   newProofToken,
@@ -74,6 +75,14 @@ type OrderRow = {
   payment_source?: string | null;
   uniform_text_size?: boolean | null;
   uniform_text_mm?: number | string | null;
+  stripe_invoice_id?: string | null;
+  stripe_invoice_number?: string | null;
+  stripe_invoice_url?: string | null;
+  stripe_invoice_pdf_url?: string | null;
+  stripe_invoice_status?: string | null;
+  stripe_invoice_error?: string | null;
+  stripe_invoice_due_at?: Date | string | null;
+  invoice_cc_emails?: string | null;
   note: string;
   tracking_link: string;
   plates: SavedOrder["plates"] | string;
@@ -122,6 +131,21 @@ function rowToOrder(row: OrderRow): SavedOrder {
     trackingLink: row.tracking_link,
     plates: platesOf(row.plates),
     ...uniformFieldsFrom(row),
+    ...invoiceFieldsFrom(row),
+  };
+}
+
+function invoiceFieldsFrom(row: OrderRow) {
+  const cc = parseInvoiceCc(row.invoice_cc_emails ?? "");
+  return {
+    stripeInvoiceId: row.stripe_invoice_id?.trim() || null,
+    stripeInvoiceNumber: row.stripe_invoice_number?.trim() || null,
+    stripeInvoiceUrl: row.stripe_invoice_url?.trim() || null,
+    stripeInvoicePdfUrl: row.stripe_invoice_pdf_url?.trim() || null,
+    stripeInvoiceStatus: row.stripe_invoice_status?.trim() || null,
+    stripeInvoiceError: row.stripe_invoice_error?.trim() || null,
+    stripeInvoiceDueAt: row.stripe_invoice_due_at ? iso(row.stripe_invoice_due_at) : null,
+    invoiceCcEmails: cc.ok ? cc.emails : [],
   };
 }
 
@@ -197,6 +221,36 @@ async function insertOrder(sql: Sql, order: NewPaidOrder): Promise<SavedOrder> {
   const saved = rowToOrder(rows[0]);
   await rememberUniformTextSize(sql, saved.id, saved.uniformTextSize === true, saved.uniformTextMm);
   return saved;
+}
+
+async function rememberInvoiceCc(
+  sql: Sql | postgres.TransactionSql,
+  orderNumber: number,
+  emails: string[]
+) {
+  const write = async (query: Sql | postgres.TransactionSql) => {
+    await query`
+      UPDATE trafflabels_orders
+      SET invoice_cc_emails = ${emails.join(",")}
+      WHERE order_number = ${orderNumber}
+    `;
+  };
+  try {
+    if ("savepoint" in sql) {
+      await sql.savepoint(async (sp) => {
+        await write(sp);
+      });
+    } else {
+      await write(sql);
+    }
+  } catch (error) {
+    if (!isUndefinedColumn(error)) throw error;
+    if (emails.length > 0) {
+      throw new OrderUpdateError(
+        "Apply db/migrations/20261116_trafflabels_order_invoices.sql before saving invoice copy emails."
+      );
+    }
+  }
 }
 
 async function rememberUniformTextSize(
@@ -310,6 +364,9 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
             RETURNING *
           `;
           await rememberUniformTextSize(tx, next.id, next.uniformTextSize === true, next.uniformTextMm);
+          if (patch.invoiceCcEmails) {
+            await rememberInvoiceCc(tx, orderNumber, patch.invoiceCcEmails);
+          }
           if (platesApprovalHash(next.plates) !== beforeHash) {
             try {
               await tx`
@@ -321,7 +378,9 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
               if (!isMissingRelation(error)) throw error;
             }
           }
-          return rows[0] ? rowToOrder(rows[0]) : null;
+          const saved = rows[0] ? rowToOrder(rows[0]) : null;
+          if (!saved || !patch.invoiceCcEmails) return saved;
+          return { ...saved, invoiceCcEmails: patch.invoiceCcEmails };
         });
     },
     async createProof(orderNumber, input) {
@@ -509,6 +568,69 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
         });
       } catch (error) {
         rethrowProof(error);
+      }
+    },
+    async recordStripeInvoice(orderNumber, patch: StripeInvoicePatch) {
+      await ensureSchema(sql);
+      try {
+        return await sql.begin(async (tx) => {
+          const existing = await tx<OrderRow[]>`
+            SELECT * FROM trafflabels_orders WHERE order_number = ${orderNumber} FOR UPDATE
+          `;
+          if (!existing[0]) return null;
+          const current = rowToOrder(existing[0]);
+          const next = mergeInvoicePatch(current, patch);
+          if (next === current) return current;
+          const invoiceId = next.stripeInvoiceId ?? null;
+          const rows = await tx<OrderRow[]>`
+            UPDATE trafflabels_orders SET
+              stripe_invoice_id = ${invoiceId},
+              stripe_invoice_number = ${next.stripeInvoiceNumber ?? null},
+              stripe_invoice_url = ${next.stripeInvoiceUrl ?? null},
+              stripe_invoice_pdf_url = ${next.stripeInvoicePdfUrl ?? null},
+              stripe_invoice_status = ${next.stripeInvoiceStatus ?? null},
+              stripe_invoice_error = ${next.stripeInvoiceError ?? null},
+              stripe_invoice_due_at = ${next.stripeInvoiceDueAt ?? null},
+              updated_at = ${next.updatedAt}
+            WHERE order_number = ${orderNumber}
+              AND (
+                stripe_invoice_id IS NULL
+                OR stripe_invoice_id = ''
+                OR stripe_invoice_id = ${invoiceId}
+              )
+            RETURNING *
+          `;
+          return rows[0] ? rowToOrder(rows[0]) : current;
+        });
+      } catch (error) {
+        if (isUndefinedColumn(error)) throw new InvoiceSchemaError();
+        throw error;
+      }
+    },
+    async findByStripeInvoiceId(invoiceId) {
+      const id = invoiceId.trim();
+      if (!id) return null;
+      await ensureSchema(sql);
+      try {
+        const rows = await sql<OrderRow[]>`
+          SELECT * FROM trafflabels_orders WHERE stripe_invoice_id = ${id} LIMIT 1
+        `;
+        return rows[0] ? rowToOrder(rows[0]) : null;
+      } catch (error) {
+        if (isUndefinedColumn(error)) return null;
+        throw error;
+      }
+    },
+    async rememberProofInvoice(proofId, url) {
+      await ensureSchema(sql);
+      try {
+        await sql`
+          UPDATE trafflabels_proofs
+          SET invoice_url = ${url}
+          WHERE id = ${proofId} AND invoice_url = ''
+        `;
+      } catch (error) {
+        if (!isMissingRelation(error) && !isUndefinedColumn(error)) throw error;
       }
     },
   };

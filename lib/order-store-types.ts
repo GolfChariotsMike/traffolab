@@ -1,3 +1,4 @@
+import type { StripeInvoicePatch } from "@/lib/invoice";
 import type { CheckoutDraft, NewPaidOrder, OrderPatch, SavedOrder } from "@/lib/orders";
 import type { ProofDecisionInput, ProofDecisionResult, ProofRecord } from "@/lib/proofs";
 
@@ -20,6 +21,11 @@ export type OrderStore = {
   listLatestProofs(): Promise<ProofRecord[]>;
   getLatestProof(orderId: string): Promise<ProofRecord | null>;
   decideProof(token: string, decision: ProofDecisionInput): Promise<ProofDecisionResult>;
+  /** Store a Stripe invoice, or an error when creation failed. Does not replace an existing invoice id. */
+  recordStripeInvoice(orderNumber: number, patch: StripeInvoicePatch): Promise<SavedOrder | null>;
+  findByStripeInvoiceId(invoiceId: string): Promise<SavedOrder | null>;
+  /** Fill the proof's invoice link once, when the admin had not pasted one. */
+  rememberProofInvoice(proofId: string, url: string): Promise<void>;
 };
 
 export function databaseUrl() {

@@ -7,6 +7,7 @@ import {
   type AccountApplication,
   type NewAccountApplication,
 } from "@/lib/account-application";
+import { matchApprovedTradeAccount } from "@/lib/invoice";
 import {
   createFileAccountApplicationStore,
   defaultAccountApplicationFilePath,
@@ -220,6 +221,29 @@ export function createPostgresAccountApplicationStore(sql: Sql): AccountApplicat
           RETURNING *
         `;
         return rows[0] ? rowToApplication(rows[0]) : null;
+      } catch (error) {
+        rethrowSchema(error);
+      }
+    },
+    async findApprovedForInvoice(input) {
+      const email = input.email.trim().toLowerCase();
+      try {
+        const rows = await sql<ApplicationRow[]>`
+          SELECT * FROM trafflabels_account_applications
+          WHERE status = 'approved'
+            AND (
+              linked_order_id = ${input.orderId}
+              OR (${email} <> '' AND lower(ap_email) = ${email})
+              OR (${email} <> '' AND lower(purchasing_email) = ${email})
+            )
+          ORDER BY created_at DESC
+          LIMIT 20
+        `;
+        const match = matchApprovedTradeAccount(rows.map(rowToApplication), {
+          email,
+          orderId: input.orderId,
+        });
+        return match;
       } catch (error) {
         rethrowSchema(error);
       }

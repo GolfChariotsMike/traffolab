@@ -1,8 +1,10 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { mergeInvoicePatch, type StripeInvoicePatch } from "@/lib/invoice";
 import {
   applyOrderPatch,
   OrderUpdateError,
+  parseInvoiceCc,
   type CheckoutDraft,
   type OrderPatch,
   type SavedOrder,
@@ -13,6 +15,7 @@ import {
   platesApprovalHash,
   platesMatchProof,
   proofPriceSummary,
+  cleanInvoiceUrl,
   type ProofDecisionInput,
   type ProofRecord,
 } from "@/lib/proofs";
@@ -34,6 +37,14 @@ function normalizeOrder(order: SavedOrder): SavedOrder {
   return {
     ...order,
     paymentSource: order.paymentSource === "manual" ? "manual" : "stripe",
+    stripeInvoiceId: textOrNull(order.stripeInvoiceId),
+    stripeInvoiceNumber: textOrNull(order.stripeInvoiceNumber),
+    stripeInvoiceUrl: textOrNull(order.stripeInvoiceUrl),
+    stripeInvoicePdfUrl: textOrNull(order.stripeInvoicePdfUrl),
+    stripeInvoiceStatus: textOrNull(order.stripeInvoiceStatus),
+    stripeInvoiceError: textOrNull(order.stripeInvoiceError),
+    stripeInvoiceDueAt: textOrNull(order.stripeInvoiceDueAt),
+    invoiceCcEmails: ccEmailsOf(order.invoiceCcEmails),
     uniformTextMm: typeof uniformTextMm === "number" ? uniformTextMm : undefined,
     uniformTextSize:
       typeof uniformTextMm === "number" ? false : order.uniformTextSize === true || fromPlates,
@@ -296,7 +307,45 @@ export function createFileOrderStore(filePath: string): OrderStore {
         return { ok: true as const, proof: clone(proof), changed: true };
       });
     },
+    async recordStripeInvoice(orderNumber, patch: StripeInvoicePatch) {
+      return locked(async () => {
+        const db = await read();
+        const index = db.orders.findIndex((item) => item.orderNumber === orderNumber);
+        if (index < 0) return null;
+        const next = mergeInvoicePatch(db.orders[index], patch);
+        db.orders[index] = next;
+        await write(db);
+        return clone(next);
+      });
+    },
+    async findByStripeInvoiceId(invoiceId) {
+      const id = invoiceId.trim();
+      if (!id) return null;
+      const db = await read();
+      const found = db.orders.find((item) => item.stripeInvoiceId === id);
+      return found ? clone(found) : null;
+    },
+    async rememberProofInvoice(proofId, url) {
+      const cleaned = cleanInvoiceUrl(url);
+      if (!cleaned) return;
+      await locked(async () => {
+        const db = await read();
+        const proof = db.proofs.find((item) => item.id === proofId);
+        if (!proof || proof.invoiceUrl) return;
+        proof.invoiceUrl = cleaned;
+        await write(db);
+      });
+    },
   };
+}
+
+function textOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function ccEmailsOf(value: SavedOrder["invoiceCcEmails"]) {
+  const parsed = parseInvoiceCc(value ?? []);
+  return parsed.ok ? parsed.emails : [];
 }
 
 function latestProofs(proofs: ProofRecord[]) {
