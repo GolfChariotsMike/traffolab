@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AdminHeader } from "@/components/admin/admin-header";
 import {
   formatAbn,
   type AccountApplication,
@@ -73,28 +74,7 @@ export function AccountApplicationsBoard({
           "repeating-linear-gradient(-45deg, #0c0d10 0 14px, #111318 14px 28px)",
       }}
     >
-      <header className="border-b border-white/10 bg-[#12151a]">
-        <div className="h-1 bg-[#fee100]" />
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-          <p className="font-heading text-lg font-semibold tracking-tight">TraffLabels</p>
-          <div className="flex items-center gap-3">
-            <a href="/admin/orders/" className="text-sm text-[#fee100] hover:underline">
-              Orders
-            </a>
-            {signedInEmail ? (
-              <p className="hidden text-sm text-white/55 sm:block">{signedInEmail}</p>
-            ) : null}
-            <form action="/api/admin/logout/" method="post">
-              <button
-                type="submit"
-                className="rounded-full border border-white/25 px-3 py-1 text-sm text-white/90 hover:bg-white/10"
-              >
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+      <AdminHeader current="applications" signedInEmail={signedInEmail} />
 
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">

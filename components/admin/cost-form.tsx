@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  COST_CATEGORIES,
+  COST_ENTRY_CATEGORIES,
   costCategoryLabel,
   costExGstCents,
   perthToday,
@@ -59,7 +59,7 @@ export function CostForm({
       <input aria-label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} required />
       <input aria-label="Amount (AUD)" inputMode="decimal" placeholder="$ 0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className={field} required />
       <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value as CostCategory)} className={field}>
-        {COST_CATEGORIES.map((item) => (
+        {COST_ENTRY_CATEGORIES.map((item) => (
           <option key={item.id} value={item.id}>{item.label}</option>
         ))}
       </select>
