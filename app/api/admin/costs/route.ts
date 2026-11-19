@@ -5,12 +5,12 @@ import {
   CostSchemaError,
   CostValidationError,
   isValidMonth,
-  monthSummary,
-  orderProfit,
   parseNewCost,
   perthMonth,
 } from "@/lib/costs";
 import { getOrderStore } from "@/lib/order-store";
+import { presentMonth, presentOrderCosts } from "@/lib/stock";
+import { loadStockPurchases } from "@/lib/stock-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,13 +42,19 @@ export async function GET(request: Request) {
     if (url.searchParams.has("orderNumber")) {
       const order = Number.isInteger(orderNumber) ? await orders.getOrder(orderNumber) : null;
       if (!order) return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });
-      const costs = await store.listForOrder(order.id);
-      return NextResponse.json({ ok: true, costs, profit: orderProfit(order, costs) });
+      const [costs, purchases] = await Promise.all([store.listForOrder(order.id), loadStockPurchases()]);
+      const view = presentOrderCosts(order, costs, purchases);
+      return NextResponse.json({ ok: true, costs: view.costs, material: view.material, profit: view.profit });
     }
     const monthParam = url.searchParams.get("month");
     const month = isValidMonth(monthParam) ? monthParam : perthMonth();
-    const [costs, allOrders] = await Promise.all([store.listForMonth(month), orders.listOrders()]);
-    return NextResponse.json({ ok: true, costs, summary: monthSummary(month, allOrders, costs) });
+    const [costs, allOrders, purchases] = await Promise.all([
+      store.listForMonth(month),
+      orders.listOrders(),
+      loadStockPurchases(),
+    ]);
+    const view = presentMonth(month, allOrders, costs, purchases);
+    return NextResponse.json({ ok: true, costs: view.costs, summary: view.summary });
   } catch (error) {
     return failure(error, "load");
   }

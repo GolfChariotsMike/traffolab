@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AdminHeader } from "@/components/admin/admin-header";
 import { CostForm, CostList } from "@/components/admin/cost-form";
 import { SPLIT_RULES, costCategoryLabel, type Cost, type MonthSummary } from "@/lib/costs";
 import { formatAud } from "@/lib/pricing";
@@ -11,12 +12,14 @@ export function CostsBoard({
   initialSummary,
   storeError,
   signedInEmail,
+  stockActive,
 }: {
   initialMonth: string;
   initialCosts: Cost[];
   initialSummary: MonthSummary | null;
   storeError: string | null;
   signedInEmail?: string;
+  stockActive: boolean;
 }) {
   const [month, setMonth] = useState(initialMonth);
   const [costs, setCosts] = useState(initialCosts);
@@ -47,20 +50,7 @@ export function CostsBoard({
 
   return (
     <div className="min-h-screen text-paper" style={{ backgroundImage: "repeating-linear-gradient(-45deg, #0c0d10 0 14px, #111318 14px 28px)" }}>
-      <header className="border-b border-white/10 bg-[#12151a]">
-        <div className="h-1 bg-[#fee100]" />
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4">
-          <p className="font-heading text-lg font-semibold tracking-tight">TraffLabels</p>
-          <div className="flex items-center gap-3">
-            <a href="/admin/orders/" className="text-sm text-[#fee100] hover:underline">Orders</a>
-            <a href="/admin/account-applications/" className="text-sm text-[#fee100] hover:underline">Account applications</a>
-            {signedInEmail ? <p className="hidden text-sm text-white/55 sm:block">{signedInEmail}</p> : null}
-            <form action="/api/admin/logout/" method="post">
-              <button type="submit" className="rounded-full border border-white/25 px-3 py-1 text-sm text-white/90 hover:bg-white/10">Sign out</button>
-            </form>
-          </div>
-        </div>
-      </header>
+      <AdminHeader current="costs" signedInEmail={signedInEmail} />
 
       <div className="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -88,14 +78,17 @@ export function CostsBoard({
             ) : null}
             <p className="mt-3 text-sm text-white/65">
               {SPLIT_RULES ? "Split rules are configured in lib/costs.ts." : "Split rules not set yet."} Revenue counts orders by the Perth month they were placed; costs count by their own date.
+              {stockActive
+                ? " Materials is the plate area on orders placed this month, priced from sheet stock."
+                : ""}
             </p>
           </section>
         ) : null}
 
         <section className="border border-white/15 bg-black/50 p-4">
           <h2 className="font-heading text-lg font-semibold">Add a general cost</h2>
-          <p className="mt-1 text-sm text-white/60">Not tied to one order (Traffolyte stock, software, tools). Add order costs from the order on the Orders board.</p>
-          <div className="mt-3"><CostForm orderNumber={null} defaultCategory="materials" onAdded={refresh} /></div>
+          <p className="mt-1 text-sm text-white/60">Not tied to one order (software, tools, postage). Record sheet purchases on Stock. Each order&apos;s material cost is calculated from its plates.</p>
+          <div className="mt-3"><CostForm orderNumber={null} defaultCategory="other" onAdded={refresh} /></div>
         </section>
 
         <section className="border border-white/15 bg-black/50 p-4">

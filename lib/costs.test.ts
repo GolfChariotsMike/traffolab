@@ -27,6 +27,7 @@ assert.equal(costExGstCents({ amountCents: 720, gstIncluded: false }), 720);
 
 assert.throws(() => parseNewCost({ amount: "x", category: "postage", date: "2026-11-02" }, null, "a"), CostValidationError);
 assert.throws(() => parseNewCost({ amount: "1", category: "beer", date: "2026-11-02" }, null, "a"), CostValidationError);
+assert.throws(() => parseNewCost({ amount: "1", category: "materials", date: "2026-11-02" }, null, "a"), CostValidationError);
 assert.throws(() => parseNewCost({ amount: "1", category: "postage", date: "2026-02-30" }, null, "a"), CostValidationError);
 const parsed = parseNewCost({ amount: "7.20", category: "postage", date: "2026-11-02", description: " post " }, "o1", "mike@x");
 assert.deepEqual(parsed, {
@@ -61,6 +62,18 @@ assert.equal(summary.orderCostsExGstCents, 655);
 assert.equal(summary.generalCostsExGstCents, 5000);
 assert.equal(summary.profitCents, 8400 - 5655);
 assert.deepEqual(summary.byCategory.map((r) => r.category), ["postage", "materials"]);
+
+const drawn = monthSummary("2026-11", [
+  { createdAt: "2026-11-01T02:00:00Z", totalCents: 8400 },
+  { createdAt: "2026-10-20T02:00:00Z", totalCents: 100000 },
+], costs, { materialExGstCents: 1162, excludeCategory: "materials" });
+assert.equal(drawn.generalCostsExGstCents, 0);
+assert.equal(drawn.orderCostsExGstCents, 655 + 1162);
+assert.equal(drawn.profitCents, 8400 - (655 + 1162));
+assert.deepEqual(drawn.byCategory.map((row) => [row.category, row.exGstCents]), [
+  ["postage", 655],
+  ["materials", 1162],
+]);
 
 // Split is not decided: no rules shipped, but the maths is configurable.
 assert.equal(SPLIT_RULES, null);

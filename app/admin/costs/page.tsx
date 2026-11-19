@@ -4,8 +4,10 @@ import { CostsBoard } from "@/components/admin/costs-board";
 import { ORDERS_COOKIE, dashboardConfigured, readOrdersSession } from "@/lib/admin-auth";
 import { resendConfigured } from "@/lib/admin-mail";
 import { getCostStore } from "@/lib/cost-store";
-import { CostSchemaError, monthSummary, perthMonth, type Cost, type MonthSummary } from "@/lib/costs";
+import { CostSchemaError, perthMonth, type Cost, type MonthSummary } from "@/lib/costs";
 import { getOrderStore } from "@/lib/order-store";
+import { presentMonth } from "@/lib/stock";
+import { loadStockPurchases } from "@/lib/stock-store";
 
 export const dynamic = "force-dynamic";
 
@@ -87,13 +89,20 @@ export default async function AdminCostsPage() {
   let costs: Cost[] = [];
   let summary: MonthSummary | null = null;
   let storeError: string | null = null;
+  let stockActive = false;
   if (!store || !orders) {
     storeError = "Costs are not configured. Set DATABASE_URL (or POSTGRES_URL) for this deployment.";
   } else {
     try {
-      const [monthCosts, allOrders] = await Promise.all([store.listForMonth(month), orders.listOrders()]);
-      costs = monthCosts;
-      summary = monthSummary(month, allOrders, costs);
+      const [monthCosts, allOrders, purchases] = await Promise.all([
+        store.listForMonth(month),
+        orders.listOrders(),
+        loadStockPurchases(),
+      ]);
+      const view = presentMonth(month, allOrders, monthCosts, purchases);
+      costs = view.costs;
+      summary = view.summary;
+      stockActive = view.stockActive;
     } catch (error) {
       if (error instanceof CostSchemaError) storeError = error.message;
       else {
@@ -111,6 +120,7 @@ export default async function AdminCostsPage() {
         initialSummary={summary}
         storeError={storeError}
         signedInEmail={session.email}
+        stockActive={stockActive}
       />
     </main>
   );

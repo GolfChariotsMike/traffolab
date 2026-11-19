@@ -11,6 +11,9 @@ export const COST_CATEGORIES = [
 
 export type CostCategory = (typeof COST_CATEGORIES)[number]["id"];
 
+/** Categories an admin can type in. Sheet stock is a purchase, not a cost row. */
+export const COST_ENTRY_CATEGORIES = COST_CATEGORIES.filter((item) => item.id !== "materials");
+
 export function isCostCategory(value: unknown): value is CostCategory {
   return COST_CATEGORIES.some((item) => item.id === value);
 }
@@ -101,6 +104,11 @@ export function parseNewCost(
     throw new CostValidationError("Enter an amount in dollars, like 7.20.");
   }
   if (!isCostCategory(body.category)) throw new CostValidationError("Choose a category.");
+  if (body.category === "materials") {
+    throw new CostValidationError(
+      "Record sheet stock on the Stock page. An order's material cost is calculated from its plates."
+    );
+  }
   const date = body.date ?? "";
   if (!isValidDate(date)) throw new CostValidationError("Enter a valid date.");
   const description = typeof body.description === "string" ? body.description.trim() : "";
@@ -138,9 +146,13 @@ export function orderRevenueExGstCents(order: { totalCents: number }) {
 
 export type OrderProfit = { revenueExGstCents: number; costsExGstCents: number; profitCents: number };
 
-export function orderProfit(order: { totalCents: number }, costs: Cost[]): OrderProfit {
+export function orderProfit(
+  order: { totalCents: number },
+  costs: Cost[],
+  materialExGstCents = 0
+): OrderProfit {
   const revenueExGstCents = orderRevenueExGstCents(order);
-  const costsExGstCents = sumCostsExGst(costs);
+  const costsExGstCents = sumCostsExGst(costs) + materialExGstCents;
   return { revenueExGstCents, costsExGstCents, profitCents: revenueExGstCents - costsExGstCents };
 }
 
@@ -155,24 +167,40 @@ export type MonthSummary = {
   byCategory: { category: CostCategory; exGstCents: number }[];
 };
 
+export type MonthSummaryOptions = {
+  /** Plate material for orders placed this month. Added to order costs. */
+  materialExGstCents?: number;
+  /** Logged rows in this category are left out. Sheet stock replaces materials. */
+  excludeCategory?: CostCategory;
+};
+
 /**
  * Orders count in the Perth month they were created. Costs count in the month
  * of their own date (so postage paid in December for a November order lands in December).
+ * Pass materialExGstCents once sheet stock is recorded, and exclude the materials
+ * category so a bulk purchase is not counted as well as the plate drawdown.
  */
 export function monthSummary(
   month: string,
   orders: { createdAt: string; totalCents: number }[],
-  costs: Cost[]
+  costs: Cost[],
+  options?: MonthSummaryOptions
 ): MonthSummary {
+  const materialExGstCents = options?.materialExGstCents ?? 0;
+  const logged = options?.excludeCategory
+    ? costs.filter((cost) => cost.category !== options.excludeCategory)
+    : costs;
   const monthOrders = orders.filter((order) => perthMonthOf(order.createdAt) === month);
-  const monthCosts = costs.filter((cost) => cost.date.slice(0, 7) === month);
+  const monthCosts = logged.filter((cost) => cost.date.slice(0, 7) === month);
   const revenueExGstCents = monthOrders.reduce((t, o) => t + orderRevenueExGstCents(o), 0);
-  const orderCostsExGstCents = sumCostsExGst(monthCosts.filter((c) => c.orderId));
+  const orderCostsExGstCents = sumCostsExGst(monthCosts.filter((c) => c.orderId)) + materialExGstCents;
   const generalCostsExGstCents = sumCostsExGst(monthCosts.filter((c) => !c.orderId));
   const totalCostsExGstCents = orderCostsExGstCents + generalCostsExGstCents;
   const byCategory = COST_CATEGORIES.map((item) => ({
     category: item.id,
-    exGstCents: sumCostsExGst(monthCosts.filter((c) => c.category === item.id)),
+    exGstCents:
+      sumCostsExGst(monthCosts.filter((c) => c.category === item.id)) +
+      (item.id === "materials" ? materialExGstCents : 0),
   })).filter((row) => row.exGstCents > 0);
   return {
     month,
