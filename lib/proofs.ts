@@ -306,6 +306,23 @@ export function cutFileDownloadHold(summary: Pick<ProofSummary, "state"> | null 
   return CUT_FILE_HOLD_MESSAGE;
 }
 
+/** Shown where plate editors were, and returned when a save would change them. */
+export const PROOF_PLATE_LOCK_MESSAGE = "Locked: proof sent to customer";
+
+/**
+ * Pending, approved, and changes-requested proofs are still the customer's copy.
+ * Not-yet-sent and superseded orders can be edited and given a new link.
+ */
+export function proofBlocksPlateEdits(
+  summary: Pick<ProofSummary, "state"> | null | undefined
+) {
+  return (
+    summary?.state === "awaiting" ||
+    summary?.state === "approved" ||
+    summary?.state === "changes_requested"
+  );
+}
+
 export function proofStatusText(summary: ProofSummary) {
   if (summary.state === "not_sent") return "Not sent";
   if (summary.state === "awaiting") return "Awaiting approval";

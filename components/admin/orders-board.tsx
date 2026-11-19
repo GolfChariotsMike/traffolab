@@ -15,6 +15,8 @@ import {
 } from "@/lib/label-design";
 import {
   ORDER_STATUSES,
+  adminOrderUpdateBody,
+  cleanUniformTextMm,
   countryLabel,
   formatOrderDate,
   formatPerthDateTime,
@@ -29,7 +31,9 @@ import {
 import {
   CUT_FILE_HOLD_MESSAGE,
   EMPTY_PROOF_SUMMARY,
+  PROOF_PLATE_LOCK_MESSAGE,
   cutFileDownloadHold,
+  proofBlocksPlateEdits,
   proofPath,
   proofPriceSummary,
   proofStatusText,
@@ -37,7 +41,6 @@ import {
 } from "@/lib/proofs";
 import { invoiceBoardState, invoiceStatusLabel } from "@/lib/invoice";
 import { SHIPPING_METHODS, formatAud } from "@/lib/pricing";
-import { cleanUniformTextMm } from "@/lib/orders";
 import { proofPlateSvg } from "@/lib/proof-plate";
 import { productionDownloadKind } from "@/lib/production-svg";
 import { cn } from "@/lib/utils";
@@ -77,7 +80,8 @@ function orderPlateItem(
   source: string,
   fixedMm: number | null,
   location: string,
-  onLocation: (value: string) => void
+  onLocation: (value: string) => void,
+  editable: boolean
 ) {
   const fitted = fixedMm != null ? layoutLegendAtFont(source, plate, fixedMm) : null;
   const overflows = fitted != null && !fitted.fits;
@@ -104,16 +108,20 @@ function orderPlateItem(
             Does not fit at {fixedMm} mm, even on three lines. The text was not shrunk.
           </p>
         ) : null}
-        <label className="mt-2 flex flex-col gap-1 text-xs text-white/55">
-          Location
-          <input
-            value={location}
-            onChange={(event) => onLocation(event.target.value)}
-            placeholder="e.g. DB room"
-            maxLength={80}
-            className="h-8 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
-          />
-        </label>
+        {editable ? (
+          <label className="mt-2 flex flex-col gap-1 text-xs text-white/55">
+            Location
+            <input
+              value={location}
+              onChange={(event) => onLocation(event.target.value)}
+              placeholder="e.g. DB room"
+              maxLength={80}
+              className="h-8 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
+            />
+          </label>
+        ) : location ? (
+          <span className="mt-2 block text-xs text-white/55">Location: {location}</span>
+        ) : null}
       </span>
     </li>
   );
@@ -370,9 +378,21 @@ export function OrdersBoard({
 
   async function saveOrder() {
     if (!selected) return;
-    const fixedMm = uniformText && uniformTextMm.trim() ? cleanUniformTextMm(uniformTextMm) : null;
-    if (uniformText && uniformTextMm.trim() && fixedMm == null) {
-      setSaveError("Fixed text size must be between 1 and 40 mm.");
+    const built = adminOrderUpdateBody({
+      platesLocked: proofBlocksPlateEdits(
+        proofs[String(selected.orderNumber)] ?? EMPTY_PROOF_SUMMARY
+      ),
+      status,
+      note,
+      trackingLink,
+      locations,
+      uniformText,
+      uniformTextMm,
+      invoiceCc,
+    });
+    if (!built.ok) {
+      setSaveError(built.error);
+      setSaved(false);
       return;
     }
     setSaving(true);
@@ -382,15 +402,7 @@ export function OrdersBoard({
       const response = await fetch(`/api/admin/orders/${selected.orderNumber}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status,
-          note,
-          trackingLink,
-          plateLocations: locations,
-          uniformTextSize: uniformText && fixedMm == null,
-          uniformTextMm: uniformText ? fixedMm : null,
-          invoiceCc,
-        }),
+        body: JSON.stringify(built.body),
       });
       const payload = (await response.json().catch(() => null)) as {
         ok?: boolean;
@@ -430,6 +442,10 @@ export function OrdersBoard({
 
   async function createProof() {
     if (!selected) return;
+    if (proofBlocksPlateEdits(proofs[String(selected.orderNumber)] ?? EMPTY_PROOF_SUMMARY)) {
+      setProofError(PROOF_PLATE_LOCK_MESSAGE);
+      return;
+    }
     setCreatingProof(true);
     setProofError(null);
     setProofMessage(null);
@@ -539,6 +555,7 @@ export function OrdersBoard({
     origin && selectedProof.token && selectedProof.state !== "superseded" && selectedProof.state !== "not_sent"
       ? `${origin}${proofPath(selectedProof.token)}`
       : "";
+  const platesLocked = proofBlocksPlateEdits(selectedProof);
 
   return (
     <div
@@ -870,42 +887,48 @@ export function OrdersBoard({
                   </Button>
                 ) : null}
               </div>
-              <label className="mt-3 flex flex-col gap-1.5 text-sm">
-                Stripe invoice URL
-                <input
-                  value={invoiceUrl}
-                  onChange={(event) => setInvoiceUrl(event.target.value)}
-                  placeholder="https://invoice.stripe.com/…"
-                  className="h-10 rounded-lg border border-white/15 bg-black px-3"
-                />
-              </label>
-              <p className="mt-2 text-xs text-white/40">
-                {selectedProof.state === "not_sent" || selectedProof.state === "superseded"
-                  ? "Creates a link you can send. Customers are not emailed."
-                  : "A new link replaces the current one. The previous link can no longer be approved."}
-              </p>
-              {proofError ? (
-                <p role="alert" className="mt-2 text-sm text-red-300">
-                  {proofError}
-                </p>
-              ) : null}
-              {proofMessage ? (
-                <p role="status" className="mt-2 text-sm text-[#3ddc97]">
-                  {proofMessage}
-                </p>
-              ) : null}
-              <Button
-                type="button"
-                className="mt-3 bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
-                disabled={creatingProof || Boolean(proofNotice)}
-                onClick={createProof}
-              >
-                {creatingProof
-                  ? "Creating…"
-                  : selectedProof.state === "not_sent" || selectedProof.state === "superseded"
-                    ? "Create proof link"
-                    : "Create a new proof link"}
-              </Button>
+              {platesLocked ? (
+                <p className="mt-3 text-sm text-white/70">{PROOF_PLATE_LOCK_MESSAGE}</p>
+              ) : (
+                <>
+                  <label className="mt-3 flex flex-col gap-1.5 text-sm">
+                    Stripe invoice URL
+                    <input
+                      value={invoiceUrl}
+                      onChange={(event) => setInvoiceUrl(event.target.value)}
+                      placeholder="https://invoice.stripe.com/…"
+                      className="h-10 rounded-lg border border-white/15 bg-black px-3"
+                    />
+                  </label>
+                  <p className="mt-2 text-xs text-white/40">
+                    {selectedProof.state === "not_sent" || selectedProof.state === "superseded"
+                      ? "Creates a link you can send. Customers are not emailed."
+                      : "A new link replaces the current one. The previous link can no longer be approved."}
+                  </p>
+                  {proofError ? (
+                    <p role="alert" className="mt-2 text-sm text-red-300">
+                      {proofError}
+                    </p>
+                  ) : null}
+                  {proofMessage ? (
+                    <p role="status" className="mt-2 text-sm text-[#3ddc97]">
+                      {proofMessage}
+                    </p>
+                  ) : null}
+                  <Button
+                    type="button"
+                    className="mt-3 bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
+                    disabled={creatingProof || Boolean(proofNotice)}
+                    onClick={createProof}
+                  >
+                    {creatingProof
+                      ? "Creating…"
+                      : selectedProof.state === "not_sent" || selectedProof.state === "superseded"
+                        ? "Create proof link"
+                        : "Create a new proof link"}
+                  </Button>
+                </>
+              )}
             </section>
 
             <InvoicePanel
@@ -938,68 +961,83 @@ export function OrdersBoard({
                 </button>
               </div>
               <p className="mt-2 text-sm text-white/80">{plateSizeSummary(selected.plates)}</p>
-              <label className="mt-3 flex items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1 size-4 accent-[#fee100]"
-                  checked={uniformText}
-                  onChange={(event) => {
-                    setUniformText(event.target.checked);
-                    setSaved(false);
-                  }}
-                />
-                <span>
-                  <span className="block font-medium">Uniform text size</span>
-                  <span className="mt-1 block text-xs text-white/50">
-                    Leave the size blank to share one text size within each plate size. Enter a
-                    size, such as 3.4, to use it on every plate. A legend that still cannot fit
-                    is not shrunk. Saving this replaces a proof that was already sent.
-                  </span>
-                </span>
-              </label>
-              {uniformText ? (
-                <label className="mt-3 flex flex-col gap-1 text-xs text-white/55">
-                  Fixed size for every plate (mm)
-                  <input
-                    value={uniformTextMm}
-                    onChange={(event) => {
-                      setUniformTextMm(event.target.value);
-                      setSaved(false);
-                    }}
-                    inputMode="decimal"
-                    placeholder="Per plate size"
-                    className="h-9 w-36 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
-                  />
-                </label>
-              ) : null}
-              {uniformText && !uniformTextMm.trim() ? (
-                <ul className="mt-2 text-xs text-white/55">
-                  {uniformTextGroups(selected.plates).map((group) => (
-                    <li key={`${group.widthMm}x${group.heightMm}`}>
-                      {group.widthMm} × {group.heightMm} mm text {group.fontSize} mm
-                      {group.limitingTexts.length > 0
-                        ? `, limited by ${group.limitingTexts.join(", ")}`
-                        : ""}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
+              {platesLocked ? (
+                <p className="mt-3 text-sm text-white/70">{PROOF_PLATE_LOCK_MESSAGE}</p>
+              ) : (
+                <>
+                  <label className="mt-3 flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-4 accent-[#fee100]"
+                      checked={uniformText}
+                      onChange={(event) => {
+                        setUniformText(event.target.checked);
+                        setSaved(false);
+                      }}
+                    />
+                    <span>
+                      <span className="block font-medium">Uniform text size</span>
+                      <span className="mt-1 block text-xs text-white/50">
+                        Leave the size blank to share one text size within each plate size. Enter a
+                        size, such as 3.4, to use it on every plate. A legend that still cannot fit
+                        is not shrunk.
+                      </span>
+                    </span>
+                  </label>
+                  {uniformText ? (
+                    <label className="mt-3 flex flex-col gap-1 text-xs text-white/55">
+                      Fixed size for every plate (mm)
+                      <input
+                        value={uniformTextMm}
+                        onChange={(event) => {
+                          setUniformTextMm(event.target.value);
+                          setSaved(false);
+                        }}
+                        inputMode="decimal"
+                        placeholder="Per plate size"
+                        className="h-9 w-36 rounded-lg border border-white/15 bg-black px-2 text-sm text-paper"
+                      />
+                    </label>
+                  ) : null}
+                  {uniformText && !uniformTextMm.trim() ? (
+                    <ul className="mt-2 text-xs text-white/55">
+                      {uniformTextGroups(selected.plates).map((group) => (
+                        <li key={`${group.widthMm}x${group.heightMm}`}>
+                          {group.widthMm} × {group.heightMm} mm text {group.fontSize} mm
+                          {group.limitingTexts.length > 0
+                            ? `, limited by ${group.limitingTexts.join(", ")}`
+                            : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </>
+              )}
               {platesOpen ? (
               <ul id="order-plate-list" className="mt-2 flex flex-col gap-3">
-                {previewPlates(selected.plates, locations, uniformText, cleanUniformTextMm(uniformTextMm)).map((plate, index) =>
+                {(platesLocked
+                  ? selected.plates
+                  : previewPlates(
+                      selected.plates,
+                      locations,
+                      uniformText,
+                      cleanUniformTextMm(uniformTextMm)
+                    )
+                ).map((plate, index) =>
                   orderPlateItem(
                     plate,
                     index,
                     selected.plates[index]?.text ?? plate.text,
-                    uniformText ? cleanUniformTextMm(uniformTextMm) : null,
-                    locations[index] ?? "",
+                    platesLocked ? null : uniformText ? cleanUniformTextMm(uniformTextMm) : null,
+                    platesLocked ? (plate.location ?? "") : (locations[index] ?? ""),
                     (value) => {
                       const next = selected.plates.map((_, plateIndex) =>
                         plateIndex === index ? value : locations[plateIndex] ?? ""
                       );
                       setLocations(next);
                       setSaved(false);
-                    }
+                    },
+                    !platesLocked
                   )
                 )}
               </ul>

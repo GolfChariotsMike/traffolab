@@ -439,36 +439,74 @@ export function parseOrderPatch(
   return { ok: true, value: patch };
 }
 
-export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new Date()): SavedOrder {
-  const status = patch.status
-    ? transitionStatus(order.status, patch.status) ?? order.status
-    : order.status;
-  let plates = patch.plateLocations
-    ? order.plates.map((plate, index) => ({
-        ...plate,
-        location: patch.plateLocations?.[index] ?? "",
-      }))
-    : order.plates;
+function requestedUniform(order: SavedOrder, patch: OrderPatch) {
   const fixedMm =
     typeof patch.uniformTextMm === "number"
       ? patch.uniformTextMm
       : patch.uniformTextMm === null || patch.uniformTextSize === false
         ? undefined
         : order.uniformTextMm;
-  let uniformTextSize =
-    patch.uniformTextSize !== undefined ? patch.uniformTextSize : order.uniformTextSize === true;
-  if (fixedMm != null) {
-    plates = applyFixedTextSize(plates, fixedMm);
-    uniformTextSize = false;
-  } else if (patch.uniformTextSize === true) {
-    plates = applyUniformTextSize(plates);
-    uniformTextSize = true;
-  } else if (
-    (patch.uniformTextSize === false || patch.uniformTextMm === null) &&
-    (order.uniformTextSize === true || order.uniformTextMm != null)
-  ) {
-    plates = restoreIndividualLegendFit(plates);
-    uniformTextSize = false;
+  const shared =
+    fixedMm != null
+      ? false
+      : patch.uniformTextSize !== undefined
+        ? patch.uniformTextSize
+        : order.uniformTextSize === true;
+  return { fixedMm, shared };
+}
+
+/**
+ * 6.438 mm shown in the dashboard is cleaned to 6.4 on save. That round trip
+ * is the same setting. Re-laying the legends would stack a multi-line plate
+ * onto one y and rewrite its line breaks.
+ */
+function sameFixedMm(stored: number | undefined, requested: number | undefined) {
+  if (stored == null && requested == null) return true;
+  if (stored == null || requested == null) return false;
+  if (stored === requested) return true;
+  return cleanUniformTextMm(stored) === requested;
+}
+
+export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new Date()): SavedOrder {
+  const status = patch.status
+    ? transitionStatus(order.status, patch.status) ?? order.status
+    : order.status;
+  let plates = order.plates;
+  if (patch.plateLocations) {
+    const nextLocations = patch.plateLocations;
+    const locationsChanged = plates.some(
+      (plate, index) => (plate.location ?? "") !== (nextLocations[index] ?? "")
+    );
+    if (locationsChanged) {
+      plates = plates.map((plate, index) => ({
+        ...plate,
+        location: nextLocations[index] ?? "",
+      }));
+    }
+  }
+  const requested = requestedUniform(order, patch);
+  const layoutUnchanged =
+    sameFixedMm(order.uniformTextMm, requested.fixedMm) &&
+    requested.shared === (order.uniformTextMm == null && order.uniformTextSize === true);
+  let uniformTextSize = order.uniformTextSize === true;
+  let uniformTextMm = order.uniformTextMm;
+  if (!layoutUnchanged) {
+    if (requested.fixedMm != null) {
+      plates = applyFixedTextSize(plates, requested.fixedMm);
+      uniformTextSize = false;
+      uniformTextMm = requested.fixedMm;
+    } else if (requested.shared) {
+      plates = applyUniformTextSize(plates);
+      uniformTextSize = true;
+      uniformTextMm = undefined;
+    } else if (order.uniformTextSize === true || order.uniformTextMm != null) {
+      plates = restoreIndividualLegendFit(plates);
+      uniformTextSize = false;
+      uniformTextMm = undefined;
+    } else {
+      uniformTextSize = false;
+      uniformTextMm = undefined;
+    }
   }
   return {
     ...order,
@@ -477,7 +515,7 @@ export function applyOrderPatch(order: SavedOrder, patch: OrderPatch, now = new 
     trackingLink:
       patch.trackingLink !== undefined ? patch.trackingLink : order.trackingLink,
     uniformTextSize,
-    uniformTextMm: fixedMm,
+    uniformTextMm,
     plates,
     invoiceCcEmails:
       patch.invoiceCcEmails !== undefined ? patch.invoiceCcEmails : order.invoiceCcEmails,
@@ -491,6 +529,35 @@ export function cleanUniformTextMm(value: unknown): number | null {
   const rounded = Math.round(parsed * 10) / 10;
   if (rounded < 1 || rounded > 40) return null;
   return rounded;
+}
+
+/** Body the orders dashboard sends. A locked order omits every plate field. */
+export function adminOrderUpdateBody(input: {
+  platesLocked: boolean;
+  status: OrderStatus;
+  note: string;
+  trackingLink: string;
+  locations: string[];
+  uniformText: boolean;
+  uniformTextMm: string;
+  invoiceCc: string;
+}): { ok: true; body: Record<string, unknown> } | { ok: false; error: string } {
+  const body: Record<string, unknown> = {
+    status: input.status,
+    note: input.note,
+    trackingLink: input.trackingLink,
+    invoiceCc: input.invoiceCc,
+  };
+  if (input.platesLocked) return { ok: true, body };
+  const typed = input.uniformTextMm.trim();
+  const fixedMm = input.uniformText && typed ? cleanUniformTextMm(typed) : null;
+  if (input.uniformText && typed && fixedMm == null) {
+    return { ok: false, error: "Fixed text size must be between 1 and 40 mm." };
+  }
+  body.plateLocations = input.locations;
+  body.uniformTextSize = input.uniformText && fixedMm == null;
+  body.uniformTextMm = input.uniformText ? fixedMm : null;
+  return { ok: true, body };
 }
 
 function blankShipping(name: string): ShippingAddress {
