@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { tokenFromCookieHeader, verifyOrdersSession } from "@/lib/admin-auth";
 import { OrderUpdateError, parseOrderPatch } from "@/lib/orders";
 import { getOrderStore } from "@/lib/order-store";
-import { proofSummary, ProofSchemaError } from "@/lib/proofs";
+import { plateEditLockError } from "@/lib/proof-lock";
+import { proofSummary, ProofSchemaError, type ProofRecord } from "@/lib/proofs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,20 @@ export async function PATCH(
   }
 
   try {
+    const existing = await store.getOrder(orderNumber);
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });
+    }
+    let latest: ProofRecord | null = null;
+    try {
+      latest = await store.getLatestProof(existing.id);
+    } catch (error) {
+      if (!(error instanceof ProofSchemaError)) throw error;
+    }
+    const lock = plateEditLockError(existing, latest, parsed.value);
+    if (lock) {
+      return NextResponse.json({ ok: false, error: lock }, { status: 400 });
+    }
     const order = await store.updateOrder(orderNumber, parsed.value);
     if (!order) {
       return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });

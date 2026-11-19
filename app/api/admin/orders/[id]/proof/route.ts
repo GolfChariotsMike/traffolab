@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import { tokenFromCookieHeader, verifyOrdersSession } from "@/lib/admin-auth";
 import { OrderUpdateError, parsePlateLocations } from "@/lib/orders";
 import { getOrderStore } from "@/lib/order-store";
-import { cleanInvoiceUrl, proofPath, proofSummary, ProofSchemaError, PROOF_MIGRATION_HINT } from "@/lib/proofs";
+import { proofReplacementLockError } from "@/lib/proof-lock";
+import {
+  cleanInvoiceUrl,
+  proofPath,
+  proofSummary,
+  ProofSchemaError,
+  PROOF_MIGRATION_HINT,
+  type ProofRecord,
+} from "@/lib/proofs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,7 +77,23 @@ export async function POST(
   }
 
   try {
-    const existing = plateLocations ? await store.updateOrder(orderNumber, { plateLocations }) : await store.getOrder(orderNumber);
+    const current = await store.getOrder(orderNumber);
+    if (!current) {
+      return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });
+    }
+    let latest: ProofRecord | null = null;
+    try {
+      latest = await store.getLatestProof(current.id);
+    } catch (error) {
+      if (!(error instanceof ProofSchemaError)) throw error;
+    }
+    const lock = proofReplacementLockError(current, latest);
+    if (lock) {
+      return NextResponse.json({ ok: false, error: lock }, { status: 400 });
+    }
+    const existing = plateLocations
+      ? await store.updateOrder(orderNumber, { plateLocations })
+      : current;
     if (!existing) {
       return NextResponse.json({ ok: false, error: "Unknown order." }, { status: 404 });
     }
