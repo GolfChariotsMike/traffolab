@@ -41,23 +41,16 @@ const welshpool = {
   faq: [
     {
       question: "Do you cover Kewdale as well as Welshpool?",
-      answer: (
-        <p>
-          Yes. Kewdale sits on the same logistics corridor and is covered by the
-          Perth metro service — post or arranged pickup — from the Welshpool
-          page or the city hub.
-        </p>
-      ),
+      answer:
+        "Yes. Kewdale sits on the same logistics corridor and is covered by the Perth metro service — post or arranged pickup — from the Welshpool page or the city hub.",
     },
     {
       question: "Can a warehouse order plant tags, not just circuit IDs?",
-      answer: (
-        <p>
-          Yes. Traffolyte is used for plant, rack, and isolator legends as well
-          as switchboard IDs. Start from the{" "}
-          <a href={routes.hub}>Perth hub</a> or the order stub.
-        </p>
-      ),
+      answer: [
+        "Yes. Traffolyte is used for plant, rack, and isolator legends as well as switchboard IDs. Start from the ",
+        { text: "Perth hub", href: routes.hub },
+        " or the order stub.",
+      ],
     },
   ],
 };

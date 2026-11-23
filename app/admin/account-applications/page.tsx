@@ -8,13 +8,14 @@ import {
   type AccountApplication,
 } from "@/lib/account-application";
 import { getAccountApplicationStore } from "@/lib/account-application-store";
+import { withCanonical } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withCanonical("/admin/account-applications/", {
   title: "Account applications | TraffLabels",
   robots: { index: false, follow: false },
-};
+});
 
 export default async function AdminAccountApplicationsPage() {
   const jar = await cookies();

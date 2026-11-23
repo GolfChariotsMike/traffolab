@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { Separator } from "@/components/ui/separator";
-import { productName, routes, suburbs } from "@/lib/site";
+import { productName, publicContactEmail, routes, suburbs } from "@/lib/site";
 
 const footerNav = [
   { href: routes.hub, label: "Traffolyte labels Perth" },
@@ -22,6 +22,12 @@ export function SiteFooter() {
               Traffolyte (engraving laminate) labels for Perth trades and
               businesses. Designed online, nested for the laser, engraved in WA.
             </p>
+            <a
+              href={`mailto:${publicContactEmail}`}
+              className="w-fit text-sm text-primary-foreground/75 hover:text-primary-foreground"
+            >
+              {publicContactEmail}
+            </a>
             <p className="font-mono text-[11px] tracking-[0.12em] text-primary-foreground/45 uppercase">
               {productName} · Perth · Stik Stickers group
             </p>

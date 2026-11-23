@@ -1,4 +1,9 @@
-import { absoluteUrl, siteName } from "@/lib/site";
+import { CANONICAL_CHECKOUT_ORIGIN } from "@/lib/checkout-return";
+import { absoluteUrl, logoPath, publicContactEmail, siteName } from "@/lib/site";
+
+function canonicalUrl(path: string) {
+  return new URL(path, `${CANONICAL_CHECKOUT_ORIGIN}/`).toString();
+}
 
 export type JsonLdNode = Record<string, unknown>;
 
@@ -10,23 +15,33 @@ export const organizationDescription =
   "Traffolyte (engraving laminate) labels for Perth trades and businesses. Design online, engraved in WA. 100% owned & manufactured in Australia. Stik Stickers group.";
 
 export function organizationId() {
-  return `${absoluteUrl("/")}#organization`;
+  return `${canonicalUrl("/")}#organization`;
 }
 
-export function organizationNode(): JsonLdNode {
+const areaServedPerth = [
+  {
+    "@type": "City",
+    name: "Perth",
+    containedInPlace: { "@type": "State", name: "Western Australia" },
+  },
+];
+
+/**
+ * Home and contact. LocalBusiness replaces the old Organization node.
+ * Published contact is the sales mailbox only — no phone, street, hours, or sameAs.
+ */
+export function localBusinessNode(): JsonLdNode {
+  const logo = canonicalUrl(logoPath);
   return {
-    "@type": "Organization",
+    "@type": "LocalBusiness",
     "@id": organizationId(),
     name: siteName,
-    url: absoluteUrl("/"),
+    url: canonicalUrl("/"),
+    logo,
+    image: logo,
+    email: publicContactEmail,
     description: organizationDescription,
-    areaServed: [
-      {
-        "@type": "City",
-        name: "Perth",
-        containedInPlace: { "@type": "State", name: "Western Australia" },
-      },
-    ],
+    areaServed: areaServedPerth,
   };
 }
 
@@ -104,6 +119,22 @@ export function webPageNode(input: {
     url: absoluteUrl(input.path),
     isPartOf: { "@id": `${absoluteUrl("/")}#website` },
     about: { "@id": organizationId() },
+  };
+}
+
+export function faqPageNode(
+  items: readonly { question: string; answer: string }[],
+): JsonLdNode {
+  return {
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
   };
 }
 
