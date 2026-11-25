@@ -1,3 +1,4 @@
+import type { CustomCutFile } from "@/lib/custom-cut-file";
 import type { StripeInvoicePatch } from "@/lib/invoice";
 import type { CheckoutDraft, NewPaidOrder, OrderPatch, SavedOrder } from "@/lib/orders";
 import type { ProofDecisionInput, ProofDecisionResult, ProofRecord } from "@/lib/proofs";
@@ -16,6 +17,11 @@ export type OrderStore = {
   listOrders(): Promise<SavedOrder[]>;
   getOrder(orderNumber: number): Promise<SavedOrder | null>;
   updateOrder(orderNumber: number, patch: OrderPatch): Promise<SavedOrder | null>;
+  /**
+   * Replace the order's custom cut-file list. Does not change plates, so a
+   * live proof does not block it. An empty list clears the column.
+   */
+  setCustomCutFiles(orderNumber: number, files: CustomCutFile[]): Promise<SavedOrder | null>;
   createProof(orderNumber: number, input: { invoiceUrl: string }): Promise<ProofRecord | null>;
   openProof(token: string): Promise<{ proof: ProofRecord; order: SavedOrder } | null>;
   listLatestProofs(): Promise<ProofRecord[]>;

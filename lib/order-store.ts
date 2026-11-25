@@ -1,5 +1,10 @@
 import "server-only";
 import postgres, { type Sql } from "postgres";
+import {
+  customCutFileToDb,
+  parseCustomCutFiles,
+  type CustomCutFile,
+} from "@/lib/custom-cut-file";
 import { InvoiceSchemaError, mergeInvoicePatch, type StripeInvoicePatch } from "@/lib/invoice";
 import { applyOrderPatch, OrderUpdateError, parseInvoiceCc, type CheckoutDraft, type NewPaidOrder, type OrderPatch, type SavedOrder, type ShippingAddress, isOrderStatus } from "@/lib/orders";
 import {
@@ -83,6 +88,7 @@ type OrderRow = {
   stripe_invoice_error?: string | null;
   stripe_invoice_due_at?: Date | string | null;
   invoice_cc_emails?: string | null;
+  custom_cut_files?: unknown;
   note: string;
   tracking_link: string;
   plates: SavedOrder["plates"] | string;
@@ -132,6 +138,7 @@ function rowToOrder(row: OrderRow): SavedOrder {
     plates: platesOf(row.plates),
     ...uniformFieldsFrom(row),
     ...invoiceFieldsFrom(row),
+    customCutFiles: parseCustomCutFiles(row.custom_cut_files, Number(row.order_number)),
   };
 }
 
@@ -337,6 +344,31 @@ export function createPostgresOrderStore(sql: Sql): OrderStore {
         SELECT * FROM trafflabels_orders WHERE order_number = ${orderNumber}
       `;
       return rows[0] ? rowToOrder(rows[0]) : null;
+    },
+    async setCustomCutFiles(orderNumber, files: CustomCutFile[]) {
+      await ensureSchema(sql);
+      const clean = parseCustomCutFiles(files.map(customCutFileToDb), orderNumber);
+      if (clean.length !== files.length) {
+        throw new OrderUpdateError("Cut file path does not belong to this order.");
+      }
+      const payload = clean.length > 0 ? clean.map(customCutFileToDb) : null;
+      try {
+        const rows = await sql<OrderRow[]>`
+          UPDATE trafflabels_orders
+          SET custom_cut_files = ${payload ? sql.json(payload) : null},
+              updated_at = ${new Date().toISOString()}
+          WHERE order_number = ${orderNumber}
+          RETURNING *
+        `;
+        return rows[0] ? rowToOrder(rows[0]) : null;
+      } catch (error) {
+        if (isUndefinedColumn(error)) {
+          throw new OrderUpdateError(
+            "Apply db/migrations/20261125_trafflabels_custom_cut_files.sql before saving a custom cut file."
+          );
+        }
+        throw error;
+      }
     },
     async updateOrder(orderNumber, patch: OrderPatch) {
       await ensureSchema(sql);
