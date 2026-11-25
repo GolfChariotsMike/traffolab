@@ -166,7 +166,7 @@ export async function deleteCutFileObjects(
   }
 }
 
-async function downloadCutFileObject(
+export async function downloadCutFileObject(
   storage: CutFileStorage,
   orderNumber: number,
   file: CustomCutFile

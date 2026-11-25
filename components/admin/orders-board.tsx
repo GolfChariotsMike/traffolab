@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Download, X } from "lucide-react";
+import { CutFilePreview } from "@/components/admin/cut-file-preview";
 import { ImportOrderDialog } from "@/components/admin/import-order-dialog";
 import { OrderCosts } from "@/components/admin/order-costs";
 import { Button } from "@/components/ui/button";
@@ -318,10 +319,12 @@ function OrderFileCell({
 
 function CustomCutFilePanel({
   order,
+  downloadHold,
   platesLocked,
   onOrder,
 }: {
   order: SavedOrder;
+  downloadHold: string | null;
   platesLocked: boolean;
   onOrder: (order: SavedOrder) => void;
 }) {
@@ -407,6 +410,8 @@ function CustomCutFilePanel({
   }
 
   return (
+    <>
+    <CutFilePreview orderNumber={order.orderNumber} downloadHold={downloadHold} />
     <section className="mt-4 rounded-lg border border-white/15 p-3">
       <h3 className="text-sm font-semibold">Custom cut file</h3>
       {files.length > 0 ? (
@@ -487,6 +492,7 @@ function CustomCutFilePanel({
         </Button>
       </form>
     </section>
+    </>
   );
 }
 
@@ -989,6 +995,7 @@ export function OrdersBoard({
             <CustomCutFilePanel
               key={`cut-file-${selected.orderNumber}`}
               order={selected}
+              downloadHold={cutFileDownloadHold(selectedProof)}
               platesLocked={platesLocked}
               onOrder={(savedOrder) => {
                 setOrders((current) =>
