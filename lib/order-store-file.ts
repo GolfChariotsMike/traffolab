@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { customCutFileToDb, parseCustomCutFiles, type CustomCutFile } from "@/lib/custom-cut-file";
 import { mergeInvoicePatch, type StripeInvoicePatch } from "@/lib/invoice";
 import {
   applyOrderPatch,
@@ -45,6 +46,7 @@ function normalizeOrder(order: SavedOrder): SavedOrder {
     stripeInvoiceError: textOrNull(order.stripeInvoiceError),
     stripeInvoiceDueAt: textOrNull(order.stripeInvoiceDueAt),
     invoiceCcEmails: ccEmailsOf(order.invoiceCcEmails),
+    customCutFiles: parseCustomCutFiles(order.customCutFiles, order.orderNumber),
     uniformTextMm: typeof uniformTextMm === "number" ? uniformTextMm : undefined,
     uniformTextSize:
       typeof uniformTextMm === "number" ? false : order.uniformTextSize === true || fromPlates,
@@ -169,6 +171,25 @@ export function createFileOrderStore(filePath: string): OrderStore {
       const db = await read();
       const found = db.orders.find((item) => item.orderNumber === orderNumber);
       return found ? clone(found) : null;
+    },
+    async setCustomCutFiles(orderNumber, files: CustomCutFile[]) {
+      return locked(async () => {
+        const db = await read();
+        const index = db.orders.findIndex((item) => item.orderNumber === orderNumber);
+        if (index < 0) return null;
+        const clean = parseCustomCutFiles(files.map(customCutFileToDb), orderNumber);
+        if (clean.length !== files.length) {
+          throw new OrderUpdateError("Cut file path does not belong to this order.");
+        }
+        const next: SavedOrder = {
+          ...db.orders[index],
+          customCutFiles: clean,
+          updatedAt: new Date().toISOString(),
+        };
+        db.orders[index] = next;
+        await write(db);
+        return clone(next);
+      });
     },
     async updateOrder(orderNumber, patch: OrderPatch) {
       return locked(async () => {

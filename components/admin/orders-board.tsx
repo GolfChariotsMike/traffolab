@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Download, X } from "lucide-react";
 import { ImportOrderDialog } from "@/components/admin/import-order-dialog";
@@ -267,6 +267,225 @@ function InvoicePanel({
           {invoicing ? "Sending…" : retry ? "Retry invoice" : "Send invoice"}
         </Button>
       ) : null}
+    </section>
+  );
+}
+
+function OrderFileCell({
+  order,
+  downloadHold,
+}: {
+  order: SavedOrder;
+  downloadHold: string | null;
+}) {
+  const files = order.customCutFiles ?? [];
+  const kind = productionDownloadKind(order.plates);
+  const label =
+    files.length > 0
+      ? `Download cut file for order ${order.orderNumber}`
+      : `Download ${kind === "zip" ? "ZIP" : "SVG"} for order ${order.orderNumber}`;
+  if (downloadHold) {
+    return (
+      <div
+        className="flex max-w-[11rem] flex-col items-start gap-1"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          disabled
+          className="inline-flex size-8 cursor-not-allowed items-center justify-center rounded-full bg-white/10 text-white/35"
+          aria-label={`${downloadHold}. Download unavailable for order ${order.orderNumber}`}
+          title={downloadHold}
+        >
+          <Download className="size-4" />
+        </button>
+        <span className="text-[11px] leading-snug text-white/50">{CUT_FILE_HOLD_MESSAGE}</span>
+      </div>
+    );
+  }
+  return (
+    <a
+      href={`/api/admin/orders/${order.orderNumber}/files/`}
+      className="inline-flex size-8 items-center justify-center rounded-full bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
+      aria-label={label}
+      title={files.length > 0 ? files.map((file) => file.filename).join(", ") : undefined}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <Download className="size-4" />
+    </a>
+  );
+}
+
+function CustomCutFilePanel({
+  order,
+  platesLocked,
+  onOrder,
+}: {
+  order: SavedOrder;
+  platesLocked: boolean;
+  onOrder: (order: SavedOrder) => void;
+}) {
+  const files = order.customCutFiles ?? [];
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [note, setNote] = useState("");
+  const [addAnother, setAddAnother] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const input = fileRef.current;
+    const file = input?.files?.[0];
+    if (!file) {
+      setError("Choose an SVG, LightBurn, or zip file.");
+      setMessage(null);
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      body.set("note", note);
+      body.set("mode", files.length > 0 && addAnother ? "add" : "replace");
+      const response = await fetch(`/api/admin/orders/${order.orderNumber}/cut-files/`, {
+        method: "POST",
+        body,
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        order?: SavedOrder;
+      } | null;
+      if (!response.ok || !payload?.ok || !payload.order) {
+        setError(payload?.error || "Could not attach that cut file.");
+        setUploading(false);
+        return;
+      }
+      onOrder(payload.order);
+      setMessage(files.length > 0 && !addAnother ? "Cut file replaced." : "Cut file attached.");
+      setNote("");
+      setAddAnother(false);
+      if (input) input.value = "";
+      setUploading(false);
+    } catch {
+      setError("Could not attach that cut file.");
+      setUploading(false);
+    }
+  }
+
+  async function removeFile(filename: string) {
+    setRemoving(filename);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/admin/orders/${order.orderNumber}/cut-files/`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        ok?: boolean;
+        error?: string;
+        order?: SavedOrder;
+      } | null;
+      if (!response.ok || !payload?.ok || !payload.order) {
+        setError(payload?.error || "Could not remove that cut file.");
+        setRemoving(null);
+        return;
+      }
+      onOrder(payload.order);
+      setMessage("Cut file removed. Downloads use the auto-generated file again.");
+      setRemoving(null);
+    } catch {
+      setError("Could not remove that cut file.");
+      setRemoving(null);
+    }
+  }
+
+  return (
+    <section className="mt-4 rounded-lg border border-white/15 p-3">
+      <h3 className="text-sm font-semibold">Custom cut file</h3>
+      {files.length > 0 ? (
+        <ul className="mt-2 flex flex-col gap-2">
+          {files.map((file) => (
+            <li key={file.path}>
+              <p className="font-mono text-xs break-all text-paper">{file.filename}</p>
+              {file.note ? <p className="mt-1 text-sm text-white/80">{file.note}</p> : null}
+              <button
+                type="button"
+                className="mt-1 text-xs text-white/55 underline decoration-white/30 underline-offset-2 hover:text-white"
+                disabled={removing === file.filename}
+                onClick={() => void removeFile(file.filename)}
+              >
+                {removing === file.filename ? "Removing…" : "Remove"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-white/60">
+          No hand-made file. The yellow download builds an Arial zip from the plate text.
+        </p>
+      )}
+      {platesLocked ? (
+        <p className="mt-3 text-sm text-white/70">
+          Plate and text edits are locked while a proof is out. Cut files can still be attached or
+          replaced.
+        </p>
+      ) : null}
+      <form className="mt-3 flex flex-col gap-3" onSubmit={(event) => void onSubmit(event)}>
+        <label className="flex flex-col gap-1.5 text-sm">
+          SVG, LightBurn, or zip
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".svg,.lbrn,.lbrn2,.zip,image/svg+xml,application/xml,application/zip"
+            className="text-sm text-white/80 file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-sm file:text-paper"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          Note for the workshop
+          <input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            maxLength={500}
+            placeholder="Logo + Gadugi Bold. Open in LightBurn with the font installed."
+            className="h-10 rounded-lg border border-white/15 bg-black px-3"
+          />
+        </label>
+        {files.length > 0 ? (
+          <label className="flex items-start gap-2 text-sm text-white/70">
+            <input
+              type="checkbox"
+              className="mt-1 size-4 accent-[#fee100]"
+              checked={addAnother}
+              onChange={(event) => setAddAnother(event.target.checked)}
+            />
+            <span>Add alongside the current file. Leave this off to replace it.</span>
+          </label>
+        ) : null}
+        {error ? (
+          <p role="alert" className="text-sm text-red-300">
+            {error}
+          </p>
+        ) : null}
+        {message ? (
+          <p role="status" className="text-sm text-[#3ddc97]">
+            {message}
+          </p>
+        ) : null}
+        <Button
+          type="submit"
+          className="bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
+          disabled={uploading}
+        >
+          {uploading ? "Saving…" : files.length > 0 && !addAnother ? "Replace cut file" : "Attach cut file"}
+        </Button>
+      </form>
     </section>
   );
 }
@@ -666,7 +885,6 @@ export function OrdersBoard({
                   </tr>
                 ) : (
                   visible.map((order) => {
-                    const kind = productionDownloadKind(order.plates);
                     const downloadHold = cutFileDownloadHold(proofs[String(order.orderNumber)]);
                     return (
                         <tr
@@ -716,34 +934,7 @@ export function OrdersBoard({
                         <td className="px-3 py-3">{shippingLabel(order.shippingMethodId)}</td>
                         <td className="px-3 py-3 text-white/75">{formatOrderDate(order.createdAt)}</td>
                         <td className="px-3 py-3">
-                          {downloadHold ? (
-                            <div
-                              className="flex max-w-[11rem] flex-col items-start gap-1"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <button
-                                type="button"
-                                disabled
-                                className="inline-flex size-8 cursor-not-allowed items-center justify-center rounded-full bg-white/10 text-white/35"
-                                aria-label={`${CUT_FILE_HOLD_MESSAGE}. Download unavailable for order ${order.orderNumber}`}
-                                title={CUT_FILE_HOLD_MESSAGE}
-                              >
-                                <Download className="size-4" />
-                              </button>
-                              <span className="text-[11px] leading-snug text-white/50">
-                                {CUT_FILE_HOLD_MESSAGE}
-                              </span>
-                            </div>
-                          ) : (
-                            <a
-                              href={`/api/admin/orders/${order.orderNumber}/files/`}
-                              className="inline-flex size-8 items-center justify-center rounded-full bg-[#fee100] text-[#12151a] hover:bg-[#ffe866]"
-                              aria-label={`Download ${kind === "zip" ? "ZIP" : "SVG"} for order ${order.orderNumber}`}
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <Download className="size-4" />
-                            </a>
-                          )}
+                          <OrderFileCell order={order} downloadHold={downloadHold} />
                         </td>
                       </tr>
                     );
@@ -779,7 +970,7 @@ export function OrdersBoard({
             role="dialog"
             aria-modal="true"
             aria-labelledby="order-dialog-title"
-            className="w-full max-w-lg rounded-xl border border-white/10 bg-[#0e0e10] p-5 text-paper shadow-2xl"
+            className="w-full max-w-xl rounded-xl border border-white/10 bg-[#0e0e10] p-5 text-paper shadow-2xl"
           >
             <div className="flex items-start justify-between gap-3">
               <h2 id="order-dialog-title" className="font-heading text-lg font-semibold">
@@ -794,6 +985,19 @@ export function OrdersBoard({
                 <X className="size-4" />
               </button>
             </div>
+
+            <CustomCutFilePanel
+              key={`cut-file-${selected.orderNumber}`}
+              order={selected}
+              platesLocked={platesLocked}
+              onOrder={(savedOrder) => {
+                setOrders((current) =>
+                  current.map((item) =>
+                    item.orderNumber === savedOrder.orderNumber ? savedOrder : item
+                  )
+                );
+              }}
+            />
 
             <section className="mt-4">
               <h3 className="text-sm font-semibold">Customer</h3>

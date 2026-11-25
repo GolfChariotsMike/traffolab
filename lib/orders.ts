@@ -9,6 +9,7 @@ import {
   applyUniformTextSize,
   restoreIndividualLegendFit,
 } from "@/lib/label-design";
+import type { CustomCutFile } from "@/lib/custom-cut-file";
 import type { EngraveFontFace, EngraveFontWeight, PlateHole } from "@/lib/label-design";
 import type { ShippingMethodId } from "@/lib/pricing";
 
@@ -117,6 +118,11 @@ export type SavedOrder = {
   stripeInvoiceDueAt?: string | null;
   /** Extra invoice recipients. Stripe emails the customer; these get a copy. */
   invoiceCcEmails?: string[];
+  /**
+   * Hand-made LightBurn files in the private cut-file bucket.
+   * Empty or omitted means downloads use the auto-generated Arial zip.
+   */
+  customCutFiles?: CustomCutFile[];
 };
 
 export type NewPaidOrder = Omit<SavedOrder, "orderNumber">;
