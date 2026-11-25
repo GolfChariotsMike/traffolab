@@ -1,7 +1,9 @@
 /**
- * Uncompressed ZIP (method 0). Enough for a handful of LightBurn SVGs
- * and avoids a packaging dependency.
+ * ZIP store (method 0) plus a reader for stored and deflated entries.
+ * Enough for the LightBurn sheet zip and a hand-made zip of SVGs.
  */
+
+import { inflateRawSync } from "node:zlib";
 
 export type ZipEntry = {
   name: string;
@@ -120,14 +122,18 @@ export function zipStore(entries: ZipEntry[], now = new Date()): Uint8Array {
   return out;
 }
 
-/** Read method-0 entries. Used by tests and as a sanity check on our writer. */
+const ZIP_ENTRY_LIMIT = 200;
+const ZIP_BYTE_LIMIT = 20_000_000;
+
+/** Read stored (method 0) and deflated (method 8) entries. */
 export function unzipStore(bytes: Uint8Array): ZipEntry[] {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const entries: ZipEntry[] = [];
   let offset = 0;
-  while (offset + 4 <= bytes.length) {
+  while (offset + 4 <= bytes.length && entries.length < ZIP_ENTRY_LIMIT) {
     const signature = view.getUint32(offset, true);
     if (signature !== 0x04034b50) break;
+    const flags = view.getUint16(offset + 6, true);
     const method = view.getUint16(offset + 8, true);
     const compressed = view.getUint32(offset + 18, true);
     const nameLength = view.getUint16(offset + 26, true);
@@ -135,10 +141,26 @@ export function unzipStore(bytes: Uint8Array): ZipEntry[] {
     const nameStart = offset + 30;
     const dataStart = nameStart + nameLength + extraLength;
     const name = new TextDecoder().decode(bytes.subarray(nameStart, nameStart + nameLength));
-    if (method !== 0) {
+    if ((flags & 0x08) !== 0 && compressed === 0) {
+      throw new Error(`Unsupported zip data descriptor for ${name}`);
+    }
+    if (compressed > ZIP_BYTE_LIMIT || dataStart + compressed > bytes.length) {
+      throw new Error(`Zip entry is too large: ${name}`);
+    }
+    const packed = bytes.subarray(dataStart, dataStart + compressed);
+    let data: Uint8Array;
+    if (method === 0) {
+      data = packed;
+    } else if (method === 8) {
+      const inflated = inflateRawSync(packed);
+      if (inflated.length > ZIP_BYTE_LIMIT) {
+        throw new Error(`Zip entry is too large: ${name}`);
+      }
+      data = inflated;
+    } else {
       throw new Error(`Unsupported zip method ${method} for ${name}`);
     }
-    entries.push({ name, data: bytes.subarray(dataStart, dataStart + compressed) });
+    entries.push({ name, data });
     offset = dataStart + compressed;
   }
   return entries;
